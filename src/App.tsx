@@ -53,7 +53,7 @@ function App() {
         <div className="absolute top-4 left-4 z-10">
           <Card className="p-4">
             <h1 className="text-2xl font-bold text-primary mb-2">
-              Neuron Canvas
+              Neuron
             </h1>
             <Button className="w-full">Add Node</Button>
           </Card>

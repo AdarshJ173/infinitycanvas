@@ -1,7 +1,9 @@
 {
-  "name": "infinitycanvas",
+  "name": "neuron",
   "private": true,
   "version": "0.0.0",
+  "description": "Neuron - A powerful node-based visual interface",
+  "author": "Neuron",
   "type": "module",
   "scripts": {
     "dev": "vite",
