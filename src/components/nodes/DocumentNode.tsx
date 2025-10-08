@@ -26,6 +26,8 @@ interface DocumentNodeData {
   fileUrl?: string;
   thumbnailUrl?: string;
   pageCount?: number;
+  wordCount?: number;
+  metadata?: any;
   onFileUpload?: (file: File) => void;
   onRemoveFile?: () => void;
 }
@@ -364,7 +366,7 @@ export function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
                   
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-muted-foreground">
-                      {data.textContent.split(/\s+/).filter(w => w.length > 0).length} words extracted
+                      {data.wordCount || data.textContent.split(/\s+/).filter(w => w.length > 0).length} words extracted
                     </span>
                     <Button
                       variant="ghost"

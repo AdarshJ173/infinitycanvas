@@ -17,7 +17,7 @@ export function TextNode({ data, selected }: NodeProps<TextNodeData>) {
   const [content, setContent] = useState(data.content || '');
   const [name, setName] = useState(data.name || 'Text Node');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const saveTimeoutRef = useRef<number | undefined>(undefined);
 
   // Auto-focus when editing starts
   useEffect(() => {

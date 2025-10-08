@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Extraction Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #fff;
+        }
+        .container {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 30px;
+        }
+        h1 {
+            color: #ea580c;
+            margin-bottom: 20px;
+        }
+        .upload-area {
+            border: 2px dashed #444;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover {
+            border-color: #ea580c;
+            background: rgba(234, 88, 12, 0.05);
+        }
+        .upload-area.drag-over {
+            border-color: #ea580c;
+            background: rgba(234, 88, 12, 0.1);
+            transform: scale(1.02);
+        }
+        .result {
+            background: #0f0f0f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+        .result.show {
+            display: block;
+        }
+        .result h3 {
+            color: #10b981;
+            margin-top: 0;
+        }
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #222;
+        }
+        .stat:last-child {
+            border-bottom: none;
+        }
+        .label {
+            color: #888;
+        }
+        .value {
+            color: #fff;
+            font-weight: 600;
+        }
+        .preview {
+            background: #050505;
+            border: 1px solid #222;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .loading {
+            text-align: center;
+            color: #ea580c;
+            padding: 20px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #333;
+            border-top-color: #ea580c;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 PDF Extraction Test</h1>
+        <p style="color: #888; margin-bottom: 30px;">
+            This test page uses the same PDF.js library to verify extraction is working correctly.
+        </p>
+
+        <div class="upload-area" id="uploadArea">
+            <div style="font-size: 48px; margin-bottom: 10px;">📄</div>
+            <div style="font-size: 16px; font-weight: 600; margin-bottom: 5px;">
+                Drop PDF here or click to browse
+            </div>
+            <div style="color: #888; font-size: 14px;">
+                Maximum 10MB
+            </div>
+            <input type="file" id="fileInput" accept=".pdf,application/pdf" style="display: none;">
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <div style="margin-top: 10px;">Processing PDF...</div>
+        </div>
+
+        <div id="result" class="result">
+            <h3>✅ Extraction Results</h3>
+            <div class="stat">
+                <span class="label">File Name:</span>
+                <span class="value" id="fileName"></span>
+            </div>
+            <div class="stat">
+                <span class="label">File Size:</span>
+                <span class="value" id="fileSize"></span>
+            </div>
+            <div class="stat">
+                <span class="label">Pages:</span>
+                <span class="value" id="pageCount"></span>
+            </div>
+            <div class="stat">
+                <span class="label">Word Count:</span>
+                <span class="value" id="wordCount"></span>
+            </div>
+            <div class="stat">
+                <span class="label">Character Count:</span>
+                <span class="value" id="charCount"></span>
+            </div>
+            <div class="stat">
+                <span class="label">Processing Time:</span>
+                <span class="value" id="processingTime"></span>
+            </div>
+            <div class="stat">
+                <span class="label">Method:</span>
+                <span class="value" id="method"></span>
+            </div>
+            
+            <h4 style="color: #ea580c; margin-top: 20px; margin-bottom: 10px;">Text Preview (first 1000 characters):</h4>
+            <div class="preview" id="textPreview"></div>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script>
+        // Configure PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const resultDiv = document.getElementById('result');
+        const errorDiv = document.getElementById('error');
+        const loadingDiv = document.getElementById('loading');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) processFile(file);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) processFile(file);
+        });
+
+        async function processFile(file) {
+            // Hide previous results
+            resultDiv.classList.remove('show');
+            errorDiv.style.display = 'none';
+            loadingDiv.style.display = 'block';
+
+            // Validate
+            if (file.type !== 'application/pdf') {
+                showError('Only PDF files are supported');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                showError('File size exceeds 10MB limit');
+                return;
+            }
+
+            try {
+                const startTime = Date.now();
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                
+                let fullText = '';
+                
+                // Extract text from each page
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    
+                    const pageText = textContent.items
+                        .filter(item => 'str' in item)
+                        .map(item => item.str.trim())
+                        .filter(str => str.length > 0)
+                        .join(' ');
+                    
+                    if (pageText.trim()) {
+                        fullText += `\n--- Page ${pageNum} ---\n${pageText}\n`;
+                    }
+                }
+
+                const processingTime = Date.now() - startTime;
+                const wordCount = fullText.split(/\s+/).filter(w => w.length > 0).length;
+
+                // Display results
+                loadingDiv.style.display = 'none';
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileSize').textContent = formatFileSize(file.size);
+                document.getElementById('pageCount').textContent = pdf.numPages;
+                document.getElementById('wordCount').textContent = wordCount;
+                document.getElementById('charCount').textContent = fullText.length;
+                document.getElementById('processingTime').textContent = `${processingTime}ms`;
+                document.getElementById('method').textContent = 'PDF.js';
+                document.getElementById('textPreview').textContent = fullText.substring(0, 1000) + (fullText.length > 1000 ? '\n\n... (truncated)' : '');
+                resultDiv.classList.add('show');
+
+                console.log('Full extracted text:', fullText);
+                console.log('Word count:', wordCount);
+
+            } catch (error) {
+                loadingDiv.style.display = 'none';
+                showError('Failed to extract text from PDF: ' + error.message);
+                console.error('Extraction error:', error);
+            }
+        }
+
+        function showError(message) {
+            loadingDiv.style.display = 'none';
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.style.display = 'block';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+    </script>
+</body>
+</html>

@@ -35,6 +35,34 @@ export function OnboardingPage() {
           />
         </div>
         
+        {/* Transparent Floating Navigation Header */}
+        <motion.header
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="absolute top-0 left-0 right-0 z-50 px-4 sm:px-8 py-4 sm:py-6"
+        >
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img 
+                src="/logoNobg.svg" 
+                alt="Neuron Logo" 
+                className="h-10 sm:h-12 w-auto drop-shadow-lg"
+              />
+              <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent drop-shadow-md">
+                Neuron
+              </span>
+            </div>
+            <Button
+              onClick={() => navigate('/home')}
+              variant="outline"
+              className="border-primary/50 hover:bg-primary/10 backdrop-blur-sm bg-background/10"
+            >
+              Get Started
+            </Button>
+          </div>
+        </motion.header>
+        
         {/* Content Layer */}
         <div className="relative z-10 h-full flex items-center">
           <div className="w-full px-4 sm:px-8 py-12 sm:py-20">

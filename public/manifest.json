@@ -1,0 +1,17 @@
+{
+  "name": "Neuron - Digital Second Brain",
+  "short_name": "Neuron",
+  "description": "Transform scattered knowledge into connected intelligence with AI-powered visual workspace",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#E78A53",
+  "icons": [
+    {
+      "src": "/mainlogo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
