@@ -29,6 +29,10 @@ interface WebsiteNodeData {
   status?: 'empty' | 'loading' | 'ready' | 'error';
   isYouTube?: boolean;
   youtubeData?: any;
+  jinaData?: any; // Jina Reader content data
+  contentSummary?: string; // Generated content summary
+  readingTime?: number; // Estimated reading time in minutes
+  keyTopics?: string[]; // Extracted key topics from content
   onUrlChange?: (url: string) => void;
   onRemove?: () => void;
   onRefresh?: () => void;
@@ -181,6 +185,8 @@ export const WebsiteNode = memo(({ data, selected }: NodeProps<WebsiteNodeData>)
                   <p className="text-sm font-medium truncate">
                     {data.title || new URL(data.url).hostname}
                   </p>
+                  
+                  {/* YouTube metadata */}
                   {isYouTube && data.youtubeData ? (
                     <div className="mt-2 space-y-1">
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -199,9 +205,43 @@ export const WebsiteNode = memo(({ data, selected }: NodeProps<WebsiteNodeData>)
                       )}
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground truncate mt-1">
-                      {data.url}
-                    </p>
+                    /* Jina Reader metadata */
+                    data.jinaData?.success && (
+                      <div className="mt-2 space-y-1">
+                        {data.contentSummary && (
+                          <p className="text-xs text-muted-foreground line-clamp-3 mt-2">
+                            {data.contentSummary}
+                          </p>
+                        )}
+                        
+                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                          {data.readingTime && (
+                            <span className="flex items-center gap-1">
+                              <span>📖</span>
+                              <span>{data.readingTime} min read</span>
+                            </span>
+                          )}
+                          {data.jinaData.author && (
+                            <span className="truncate">
+                              ✍️ {data.jinaData.author}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {data.keyTopics && data.keyTopics.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {data.keyTopics.slice(0, 3).map((topic: string, idx: number) => (
+                              <span
+                                key={idx}
+                                className="text-xs bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full"
+                              >
+                                {topic}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
                   )}
                 </div>
                 <a
@@ -270,8 +310,38 @@ export const WebsiteNode = memo(({ data, selected }: NodeProps<WebsiteNodeData>)
                       </div>
                     )}
                   </div>
+                ) : data.jinaData?.success && data.jinaData.content ? (
+                  // Jina Reader Content Preview
+                  <div className="bg-gradient-to-br from-purple-50/50 to-blue-50/50 dark:from-purple-900/10 dark:to-blue-900/10 p-4">
+                    <div className="prose prose-sm max-w-none text-sm text-muted-foreground">
+                      <p className="line-clamp-6 leading-relaxed">
+                        {data.jinaData.content.substring(0, 500)}...
+                      </p>
+                    </div>
+                    
+                    {data.jinaData.images && data.jinaData.images.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-border/30">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <span>🖼️</span>
+                          <span>{data.jinaData.images.length} image(s) in article</span>
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="mt-3 flex items-center justify-center">
+                      <a
+                        href={data.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+                      >
+                        Read full article
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
                 ) : (
-                  // Regular Website Iframe
+                  // Fallback: Regular Website Iframe
                   <div className="bg-white">
                     <iframe
                       src={data.url}
@@ -298,9 +368,9 @@ export const WebsiteNode = memo(({ data, selected }: NodeProps<WebsiteNodeData>)
               data.status === 'error' && 'bg-red-500/10 text-red-500'
             )}
           >
-            {data.status === 'loading' && '⏳ Loading...'}
-            {data.status === 'ready' && '✓ Ready'}
-            {data.status === 'error' && '✗ Error loading website'}
+            {data.status === 'loading' && `⏳ ${isYouTube ? 'Loading video...' : 'Extracting content...'}`}
+            {data.status === 'ready' && `✓ ${!isYouTube && data.jinaData?.success ? 'Content extracted' : 'Ready'}`}
+            {data.status === 'error' && '✗ Error loading content'}
           </div>
         </div>
       )}

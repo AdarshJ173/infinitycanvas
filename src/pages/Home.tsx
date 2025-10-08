@@ -21,6 +21,7 @@ import { WebsiteNode } from '@/components/nodes/WebsiteNode';
 import { IntelligentChatBox } from '@/components/chat/IntelligentChatBox';
 import { DocumentService } from '@/services/documentService';
 import YouTubeService from '@/services/youtubeService';
+import JinaService from '@/services/jinaService';
 import { useConvex, useAction, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Plus, FileText, File, Brain, Image, Globe } from 'lucide-react';
@@ -103,6 +104,23 @@ export function HomePage() {
     .filter(node => node.type === 'websiteNode' && node.data?.isYouTube && node.data?.youtubeData)
     .map(node => YouTubeService.formatForContext(node.data.youtubeData))
     .join('\n\n---\n\n');
+  
+  // Aggregate Jina Reader web content context from all non-YouTube website nodes
+  const webContentContext = nodes
+    .filter(node => node.type === 'websiteNode' && !node.data?.isYouTube && node.data?.jinaData && node.data?.jinaData?.success)
+    .map(node => JinaService.formatForContext(node.data.jinaData))
+    .join('\n\n---\n\n');
+  
+  // Combine all website context (YouTube + Jina Reader)
+  const websiteContext = [youtubeContext, webContentContext].filter(Boolean).join('\n\n===\n\n');
+  
+  // Calculate context statistics for chat UI
+  const contextStats = {
+    documents: nodes.filter(node => node.type === 'documentNode' && node.data?.ragieStatus === 'ready').length,
+    youtubeVideos: nodes.filter(node => node.type === 'websiteNode' && node.data?.isYouTube && node.data?.youtubeData).length,
+    webArticles: nodes.filter(node => node.type === 'websiteNode' && !node.data?.isYouTube && node.data?.jinaData?.success).length,
+    images: nodes.filter(node => node.type === 'imageNode' && node.data?.status === 'ready').length,
+  };
 
   const onConnect: OnConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
@@ -381,23 +399,87 @@ export function HomePage() {
         toast.error('Failed to load YouTube video');
       }
     } else {
-      // Regular website
+      // Regular website - use Jina Reader for content extraction
       setNodes((nds) =>
         nds.map((node) =>
           node.id === nodeId
-            ? { 
-                ...node, 
-                data: { 
-                  ...node.data, 
-                  url,
-                  title: new URL(url).hostname,
-                  status: 'ready'
-                } 
-              }
+            ? { ...node, data: { ...node.data, url, status: 'loading' } }
             : node
         )
       );
-      toast.success('Website added');
+      
+      try {
+        console.log('🔍 Extracting content with Jina Reader...');
+        const jinaData = await JinaService.extractContent(url);
+        
+        if (jinaData.success) {
+          // Get content summary for node display
+          const contentSummary = JinaService.getContentSummary(jinaData.content, 300);
+          const readingTime = JinaService.estimateReadingTime(jinaData.content);
+          const keyTopics = JinaService.extractKeyTopics(jinaData.content, 5);
+          
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId
+                ? { 
+                    ...node, 
+                    data: { 
+                      ...node.data, 
+                      url,
+                      title: jinaData.title,
+                      isYouTube: false,
+                      jinaData,
+                      contentSummary,
+                      readingTime,
+                      keyTopics,
+                      status: 'ready'
+                    } 
+                  }
+                : node
+            )
+          );
+          
+          toast.success(`Content extracted: ${jinaData.title}`);
+        } else {
+          // Extraction failed, but still set basic info
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId
+                ? { 
+                    ...node, 
+                    data: { 
+                      ...node.data, 
+                      url,
+                      title: new URL(url).hostname,
+                      status: 'ready',
+                      jinaData: { ...jinaData, success: false }
+                    } 
+                  }
+                : node
+            )
+          );
+          
+          toast.warning('Website added (content extraction unavailable)');
+        }
+      } catch (error) {
+        console.error('Failed to extract website content:', error);
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? { 
+                  ...node, 
+                  data: { 
+                    ...node.data, 
+                    url,
+                    title: new URL(url).hostname,
+                    status: 'error'
+                  } 
+                }
+              : node
+          )
+        );
+        toast.error('Failed to extract website content');
+      }
     }
   }, [setNodes]);
 
@@ -605,7 +687,8 @@ export function HomePage() {
         canvasId={canvasId}
         hasDocuments={hasDocuments}
         connectedNodeIds={connectedNodeIds}
-        youtubeContext={youtubeContext}
+        youtubeContext={websiteContext}
+        contextStats={contextStats}
       />
       
       {/* Toast Notifications */}

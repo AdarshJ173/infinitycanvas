@@ -32,11 +32,19 @@ interface Message {
   processingTimeMs?: number;
 }
 
+interface ContextStats {
+  documents: number;
+  youtubeVideos: number;
+  webArticles: number;
+  images: number;
+}
+
 interface IntelligentChatBoxProps {
   canvasId: string;
   hasDocuments: boolean; // Documents with ragieStatus === 'ready'
   connectedNodeIds?: string[];
   youtubeContext?: string; // YouTube video context if available
+  contextStats?: ContextStats; // Statistics for context badges
   className?: string;
 }
 
@@ -45,6 +53,7 @@ export function IntelligentChatBox({
   hasDocuments,
   connectedNodeIds = [],
   youtubeContext,
+  contextStats = { documents: 0, youtubeVideos: 0, webArticles: 0, images: 0 },
   className 
 }: IntelligentChatBoxProps) {
   // State management
@@ -193,23 +202,54 @@ export function IntelligentChatBox({
               <div className="flex flex-col">
                 <span className="text-sm font-medium">Neuron AI</span>
                 <span className="text-xs text-muted-foreground">
-                  {youtubeContext ? 'YouTube + AI Context' : hasDocuments ? 'Powered by Ragie RAG' : 'General assistant'}
+                  {(() => {
+                    const activeContexts = [];
+                    if (contextStats.documents > 0) activeContexts.push('Documents');
+                    if (contextStats.youtubeVideos > 0) activeContexts.push('Videos');
+                    if (contextStats.webArticles > 0) activeContexts.push('Articles');
+                    if (contextStats.images > 0) activeContexts.push('Images');
+                    
+                    if (activeContexts.length > 0) {
+                      return `${activeContexts.join(' + ')} Context`;
+                    }
+                    return 'General assistant';
+                  })()}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
-              {/* Context Indicator */}
-              {youtubeContext && (
-                <Badge variant="secondary" className="text-xs bg-red-500/10 text-red-500 border-red-500/20">
+            <div className="flex items-center gap-1 flex-wrap">
+              {/* Context Indicators - Dynamic badges based on uploaded content */}
+              
+              {/* Documents Badge */}
+              {contextStats.documents > 0 && (
+                <Badge variant="secondary" className="text-xs bg-orange-500/10 text-orange-600 border-orange-500/20">
                   <Zap className="w-3 h-3 mr-1" />
-                  YouTube
+                  {contextStats.documents > 1 ? `${contextStats.documents} Docs` : 'Document'}
                 </Badge>
               )}
-              {hasDocuments && (
-                <Badge variant="secondary" className="text-xs">
+              
+              {/* YouTube Videos Badge */}
+              {contextStats.youtubeVideos > 0 && (
+                <Badge variant="secondary" className="text-xs bg-red-500/10 text-red-600 border-red-500/20">
                   <Zap className="w-3 h-3 mr-1" />
-                  Documents
+                  {contextStats.youtubeVideos > 1 ? `${contextStats.youtubeVideos} Videos` : 'Video'}
+                </Badge>
+              )}
+              
+              {/* Web Articles Badge */}
+              {contextStats.webArticles > 0 && (
+                <Badge variant="secondary" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20">
+                  <Zap className="w-3 h-3 mr-1" />
+                  {contextStats.webArticles > 1 ? `${contextStats.webArticles} Articles` : 'Article'}
+                </Badge>
+              )}
+              
+              {/* Images Badge */}
+              {contextStats.images > 0 && (
+                <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20">
+                  <Zap className="w-3 h-3 mr-1" />
+                  {contextStats.images > 1 ? `${contextStats.images} Images` : 'Image'}
                 </Badge>
               )}
 
@@ -335,7 +375,7 @@ export function IntelligentChatBox({
                           <div className="flex items-center gap-2">
                             <Loader2 className="w-4 h-4 animate-spin text-primary" />
                             <span className="text-sm text-muted-foreground">
-                              {youtubeContext ? 'Analyzing YouTube content...' : hasDocuments ? 'Searching your documents...' : 'Thinking...'}
+                              {youtubeContext ? 'Analyzing web content...' : hasDocuments ? 'Searching your documents...' : 'Thinking...'}
                             </span>
                           </div>
                         </div>
@@ -361,7 +401,7 @@ export function IntelligentChatBox({
                   onKeyPress={handleKeyPress}
                   placeholder={
                     youtubeContext
-                      ? "Ask about the YouTube videos..."
+                      ? "Ask about the web content..."
                       : hasDocuments
                       ? "Ask about your documents..."
                       : "Ask me anything..."
@@ -405,9 +445,16 @@ export function IntelligentChatBox({
         >
           <div className={cn(
             "w-1.5 h-1.5 rounded-full",
-            youtubeContext ? "bg-red-500" : hasDocuments ? "bg-purple-500" : "bg-yellow-500"
+            (contextStats.documents + contextStats.youtubeVideos + contextStats.webArticles + contextStats.images) > 0 
+              ? "bg-green-500 animate-pulse" 
+              : "bg-yellow-500"
           )} />
-          {youtubeContext ? 'YouTube Context Active' : hasDocuments ? 'Ragie AI Active' : 'General AI'}
+          {(() => {
+            const totalContexts = contextStats.documents + contextStats.youtubeVideos + contextStats.webArticles + contextStats.images;
+            if (totalContexts > 1) return `${totalContexts} Contexts Active`;
+            if (totalContexts === 1) return 'Context Active';
+            return 'General AI';
+          })()}
         </motion.div>
       </div>
     </motion.div>
