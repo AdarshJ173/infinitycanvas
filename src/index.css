@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 22 74% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 180 18% 42%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 220 13% 95%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 0 0% 93%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 22 74% 55%;
+  --chart-1: 180 18% 45%;
+  --chart-2: 22 68% 62%;
+  --chart-3: 27 87% 79%;
+  --chart-4: 0 0% 53%;
+  --chart-5: 0 0% 60%;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 300 3% 7%;
+  --foreground: 0 0% 76%;
+  --card: 0 0% 7%;
+  --card-foreground: 0 0% 76%;
+  --popover: 300 3% 7%;
+  --popover-foreground: 0 0% 76%;
+  --primary: 22 68% 62%;
+  --primary-foreground: 300 3% 7%;
+  --secondary: 180 18% 45%;
+  --secondary-foreground: 300 3% 7%;
+  --muted: 0 0% 13%;
+  --muted-foreground: 0 0% 53%;
+  --accent: 0 0% 20%;
+  --accent-foreground: 0 0% 76%;
+  --destructive: 180 18% 45%;
+  --destructive-foreground: 300 3% 7%;
+  --border: 0 0% 13%;
+  --input: 0 0% 13%;
+  --ring: 22 68% 62%;
+  --chart-1: 180 18% 45%;
+  --chart-2: 22 68% 62%;
+  --chart-3: 27 87% 79%;
+  --chart-4: 0 0% 53%;
+  --chart-5: 0 0% 60%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    letter-spacing: 0rem;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* React Flow Styles */
+.react-flow__node {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.react-flow__edge {
+  stroke: hsl(var(--border));
+}
+
+.react-flow__handle {
+  background: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary-foreground));
+}
