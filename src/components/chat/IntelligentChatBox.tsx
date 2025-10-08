@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import { 
   Send, 
   Minimize2, 
@@ -8,16 +9,18 @@ import {
   FileText, 
   Loader2,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { useQuery, useMutation, useAction } from 'convex/react';
+import { useQuery, useMutation, useAction, useConvex } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { toast } from 'sonner';
+import AIService from '@/services/aiService';
 
 interface Message {
   id: string;
@@ -31,16 +34,22 @@ interface Message {
 
 interface IntelligentChatBoxProps {
   canvasId: string;
-  connectedNodeIds: string[];
+  hasDocuments: boolean; // Documents with ragieStatus === 'ready'
+  connectedNodeIds?: string[];
+  youtubeContext?: string; // YouTube video context if available
   className?: string;
 }
 
 export function IntelligentChatBox({ 
   canvasId, 
-  connectedNodeIds, 
+  hasDocuments,
+  connectedNodeIds = [],
+  youtubeContext,
   className 
 }: IntelligentChatBoxProps) {
   // State management
+  const generateRagieResponse = useAction(api.ragie.generateResponse);
+  const generateGeminiResponse = useAction(api.gemini.generateResponse);
   const [message, setMessage] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCompactMode, setIsCompactMode] = useState(false);
@@ -49,7 +58,9 @@ export function IntelligentChatBox({
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I\'m Neuron AI. I can help you with general questions, and if you upload documents to the canvas, I\'ll use them as context for more personalized responses.',
+      content: hasDocuments 
+        ? 'Hello! I can now answer questions about your uploaded documents using Ragie AI.' 
+        : 'Hello! I\'m Neuron AI. Upload some documents to get contextual answers, or ask me anything!',
       timestamp: Date.now(),
     }
   ]);
@@ -86,44 +97,28 @@ export function IntelligentChatBox({
     setIsGenerating(true);
 
     try {
-      // Check if we have document context
-      const hasDocuments = connectedNodeIds.length > 0;
+      // Generate AI response using YouTube/Ragie/Gemini
+      const aiResponse = await AIService.generateResponse(
+        userMessage,
+        canvasId,
+        hasDocuments,
+        generateRagieResponse,
+        generateGeminiResponse,
+        youtubeContext
+      );
 
-      if (hasDocuments) {
-        console.log('🧠 Using context-aware mode with', connectedNodeIds.length, 'documents');
-        
-        // Simulate AI response with document context
-        setTimeout(() => {
-          const aiMessage: Message = {
-            id: `ai_${Date.now()}`,
-            role: 'assistant',
-            content: `Based on the ${connectedNodeIds.length} document(s) you've uploaded, I can help you analyze and understand the content. I've reviewed your documents and can answer questions about them.\n\nWhat specific information would you like to know about your documents?`,
-            timestamp: Date.now(),
-            contextsUsed: connectedNodeIds.length,
-            sourcesReferenced: connectedNodeIds.map((_, i) => `Document ${i + 1}`),
-            processingTimeMs: 1500,
-          };
-          
-          setMessages(prev => [...prev, aiMessage]);
-          setIsGenerating(false);
-        }, 1500);
-      } else {
-        console.log('💬 Using general AI mode (no document context)');
-        
-        // Simulate general AI response
-        setTimeout(() => {
-          const aiMessage: Message = {
-            id: `ai_${Date.now()}`,
-            role: 'assistant',
-            content: `I'm here to help! While you don't have any documents uploaded yet, I can still assist with general questions.\n\nTo get document-specific responses, try uploading a PDF using the "Add Document" button. Once uploaded, I'll be able to answer questions based on your document's content.\n\nWhat would you like to know?`,
-            timestamp: Date.now(),
-            processingTimeMs: 800,
-          };
-          
-          setMessages(prev => [...prev, aiMessage]);
-          setIsGenerating(false);
-        }, 800);
-      }
+      // Add AI response
+      const aiMessage: Message = {
+        id: `ai_${Date.now()}`,
+        role: 'assistant',
+        content: aiResponse.response,
+        timestamp: Date.now(),
+        contextsUsed: aiResponse.contextsUsed,
+        sourcesReferenced: aiResponse.sourcesReferenced,
+        processingTimeMs: aiResponse.processingTimeMs,
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
 
     } catch (error) {
       console.error('❌ Failed to generate AI response:', error);
@@ -137,10 +132,11 @@ export function IntelligentChatBox({
       };
       
       setMessages(prev => [...prev, errorMessage]);
-      setIsGenerating(false);
       toast.error('Failed to generate response');
+    } finally {
+      setIsGenerating(false);
     }
-  }, [message, isGenerating, connectedNodeIds]);
+  }, [message, isGenerating, canvasId, hasDocuments, generateRagieResponse, generateGeminiResponse, youtubeContext]);
 
   // Handle enter key
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -187,9 +183,9 @@ export function IntelligentChatBox({
               <div className="relative">
                 <Brain className={cn(
                   "w-5 h-5 transition-colors",
-                  connectedNodeIds.length > 0 ? "text-green-500" : "text-primary"
+                  hasDocuments ? "text-green-500" : "text-primary"
                 )} />
-                {connectedNodeIds.length > 0 && (
+                {hasDocuments && (
                   <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 )}
               </div>
@@ -197,20 +193,23 @@ export function IntelligentChatBox({
               <div className="flex flex-col">
                 <span className="text-sm font-medium">Neuron AI</span>
                 <span className="text-xs text-muted-foreground">
-                  {connectedNodeIds.length > 0 
-                    ? `Context-aware • ${connectedNodeIds.length} nodes connected`
-                    : 'General assistant'
-                  }
+                  {youtubeContext ? 'YouTube + AI Context' : hasDocuments ? 'Powered by Ragie RAG' : 'General assistant'}
                 </span>
               </div>
             </div>
 
             <div className="flex items-center gap-1">
               {/* Context Indicator */}
-              {connectedNodeIds.length > 0 && (
+              {youtubeContext && (
+                <Badge variant="secondary" className="text-xs bg-red-500/10 text-red-500 border-red-500/20">
+                  <Zap className="w-3 h-3 mr-1" />
+                  YouTube
+                </Badge>
+              )}
+              {hasDocuments && (
                 <Badge variant="secondary" className="text-xs">
-                  <FileText className="w-3 h-3 mr-1" />
-                  {connectedNodeIds.length}
+                  <Zap className="w-3 h-3 mr-1" />
+                  Documents
                 </Badge>
               )}
 
@@ -273,16 +272,36 @@ export function IntelligentChatBox({
                             </span>
                             {msg.role === 'assistant' && msg.contextsUsed && msg.contextsUsed > 0 && (
                               <Badge variant="outline" className="text-xs h-4 px-1">
-                                <FileText className="w-2 h-2 mr-1" />
-                                {msg.contextsUsed}
+                                <Zap className="w-2 h-2 mr-1" />
+                                {msg.contextsUsed} chunks
                               </Badge>
                             )}
                           </div>
 
                           {/* Message Content */}
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                            {msg.content}
-                          </p>
+                          <div className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                            <ReactMarkdown
+                              components={{
+                                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
+                                ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
+                                li: ({ children }) => <li className="mb-1">{children}</li>,
+                                code: ({ children, inline }: any) => 
+                                  inline ? (
+                                    <code className="bg-muted px-1 py-0.5 rounded text-xs">{children}</code>
+                                  ) : (
+                                    <code className="block bg-muted p-2 rounded text-xs overflow-x-auto">{children}</code>
+                                  ),
+                                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                                em: ({ children }) => <em className="italic">{children}</em>,
+                                h1: ({ children }) => <h1 className="text-base font-bold mb-2">{children}</h1>,
+                                h2: ({ children }) => <h2 className="text-sm font-bold mb-1">{children}</h2>,
+                                h3: ({ children }) => <h3 className="text-sm font-semibold mb-1">{children}</h3>,
+                              }}
+                            >
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
 
                           {/* Source References */}
                           {msg.role === 'assistant' && msg.sourcesReferenced && msg.sourcesReferenced.length > 0 && (
@@ -316,10 +335,7 @@ export function IntelligentChatBox({
                           <div className="flex items-center gap-2">
                             <Loader2 className="w-4 h-4 animate-spin text-primary" />
                             <span className="text-sm text-muted-foreground">
-                              {connectedNodeIds.length > 0 
-                                ? 'Analyzing your documents...'
-                                : 'Thinking...'
-                              }
+                              {youtubeContext ? 'Analyzing YouTube content...' : hasDocuments ? 'Searching your documents...' : 'Thinking...'}
                             </span>
                           </div>
                         </div>
@@ -344,7 +360,9 @@ export function IntelligentChatBox({
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder={
-                    connectedNodeIds.length > 0
+                    youtubeContext
+                      ? "Ask about the YouTube videos..."
+                      : hasDocuments
                       ? "Ask about your documents..."
                       : "Ask me anything..."
                   }
@@ -387,12 +405,9 @@ export function IntelligentChatBox({
         >
           <div className={cn(
             "w-1.5 h-1.5 rounded-full",
-            connectedNodeIds.length > 0 ? "bg-green-500" : "bg-yellow-500"
+            youtubeContext ? "bg-red-500" : hasDocuments ? "bg-purple-500" : "bg-yellow-500"
           )} />
-          {connectedNodeIds.length > 0 
-            ? `Connected to ${connectedNodeIds.length} nodes`
-            : 'General AI mode'
-          }
+          {youtubeContext ? 'YouTube Context Active' : hasDocuments ? 'Ragie AI Active' : 'General AI'}
         </motion.div>
       </div>
     </motion.div>

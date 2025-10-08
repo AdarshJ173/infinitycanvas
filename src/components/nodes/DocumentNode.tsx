@@ -9,7 +9,8 @@ import {
   CheckCircle, 
   Loader2,
   X,
-  File
+  File,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -19,6 +20,8 @@ interface DocumentNodeData {
   label: string;
   fileName?: string;
   fileSize?: number;
+  ragieDocumentId?: string;
+  ragieStatus?: 'uploading' | 'processing' | 'ready' | 'error';
   textContent?: string;
   uploadProgress?: number;
   status: NodeStatus;
@@ -106,40 +109,39 @@ export function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
   };
 
   const getStatusDisplay = () => {
-    switch (data.status) {
+    switch (data.ragieStatus) {
       case 'uploading':
         return (
-          <div className="flex items-center gap-2 text-blue-500">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span className="text-xs font-medium">
-              {data.uploadProgress || 0}%
-            </span>
+          <div className="flex items-center gap-2 text-blue-400">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-xs">Uploading to Ragie...</span>
           </div>
         );
       case 'processing':
         return (
-          <div className="flex items-center gap-2 text-amber-500">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span className="text-xs font-medium">Processing</span>
+          <div className="flex items-center gap-2 text-yellow-400">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-xs">Ragie processing...</span>
           </div>
         );
       case 'ready':
         return (
-          <div className="flex items-center gap-2 text-emerald-500">
-            <CheckCircle className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">Ready</span>
+          <div className="flex items-center gap-2 text-green-400">
+            <CheckCircle className="w-4 h-4" />
+            <span className="text-xs">Ready for AI</span>
+            <Zap className="w-3 h-3" />
           </div>
         );
       case 'error':
         return (
-          <div className="flex items-center gap-2 text-red-500">
-            <AlertCircle className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">Error</span>
+          <div className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-xs">Processing failed</span>
           </div>
         );
       default:
         return (
-          <span className="text-xs text-orange-500 font-semibold">Empty</span>
+          <span className="text-xs text-destructive">Not configured</span>
         );
     }
   };
@@ -177,6 +179,9 @@ export function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
             <span className="text-xs font-semibold text-muted-foreground truncate">
               Document Node
             </span>
+            {data.ragieDocumentId && (
+              <div className="w-2 h-2 bg-purple-500 rounded-full" title="Powered by Ragie AI" />
+            )}
           </div>
           {getStatusDisplay()}
         </div>
@@ -265,6 +270,15 @@ export function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
                       </>
                     )}
                   </div>
+                  
+                  {data.ragieDocumentId && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <div className="w-1 h-1 bg-purple-500 rounded-full" />
+                      <span className="text-xs text-purple-400">
+                        ID: {data.ragieDocumentId.substring(0, 8)}...
+                      </span>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Remove Button */}
@@ -340,6 +354,18 @@ export function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
                     </div>
                   </div>
                 </motion.div>
+              )}
+
+              {/* Ragie Ready State */}
+              {data.ragieStatus === 'ready' && (
+                <div className="bg-green-900/20 border border-green-700/30 rounded p-2">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-green-400" />
+                    <span className="text-xs text-green-400 font-medium">
+                      AI-searchable via Ragie RAG
+                    </span>
+                  </div>
+                </div>
               )}
 
               {/* Success State with Content Preview */}

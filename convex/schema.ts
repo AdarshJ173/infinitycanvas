@@ -49,23 +49,14 @@ export default defineSchema({
     fileUrl: v.optional(v.string()),
     storageId: v.optional(v.id("_storage")),
     
-    // Text extraction and processing
-    extractedText: v.optional(v.string()),
-    textLength: v.optional(v.number()),
-    processingStatus: v.optional(v.union(
-      v.literal("pending"),
+    // Ragie integration
+    ragieDocumentId: v.optional(v.string()), // Ragie document ID
+    ragieStatus: v.optional(v.union(
       v.literal("uploading"),
-      v.literal("extracting"),
-      v.literal("embedding"),
+      v.literal("processing"),
       v.literal("ready"),
       v.literal("error")
     )),
-    processingError: v.optional(v.string()),
-    
-    // RAG integration
-    embeddingGenerated: v.boolean(),
-    chunkCount: v.optional(v.number()),
-    lastProcessed: v.optional(v.number()),
     
     // Metadata
     metadata: v.optional(v.any()),
@@ -77,7 +68,6 @@ export default defineSchema({
   }).index("by_canvas", ["canvasId"])
     .index("by_user", ["userId"])
     .index("by_type", ["type"])
-    .index("by_status", ["processingStatus"])
     .index("by_updated", ["updatedAt"]),
 
   // Connection system between nodes
@@ -161,9 +151,8 @@ export default defineSchema({
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     
-    // RAG context tracking
-    retrievedChunks: v.optional(v.array(v.string())),
-    contextScore: v.optional(v.number()),
+    // Ragie context tracking
+    ragieChunksUsed: v.optional(v.number()),
     sourcesUsed: v.optional(v.array(v.string())),
     
     // AI model info

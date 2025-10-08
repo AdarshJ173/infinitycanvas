@@ -16,9 +16,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { TextNode } from '@/components/nodes/TextNode';
 import { DocumentNode } from '@/components/nodes/DocumentNode';
+import { ImageNode } from '@/components/nodes/ImageNode';
+import { WebsiteNode } from '@/components/nodes/WebsiteNode';
 import { IntelligentChatBox } from '@/components/chat/IntelligentChatBox';
-import { PDFProcessingService } from '@/services/pdfProcessingService';
-import { Plus, FileText, File, Brain } from 'lucide-react';
+import { DocumentService } from '@/services/documentService';
+import YouTubeService from '@/services/youtubeService';
+import { useConvex, useAction, useMutation } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import { Plus, FileText, File, Brain, Image, Globe } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 
 import 'reactflow/dist/style.css';
@@ -27,6 +32,8 @@ import 'reactflow/dist/style.css';
 const nodeTypes = {
   textNode: TextNode,
   documentNode: DocumentNode,
+  imageNode: ImageNode,
+  websiteNode: WebsiteNode,
 };
 
 const initialNodes: Node[] = [
@@ -72,13 +79,30 @@ export function HomePage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [nodeCounter, setNodeCounter] = useState(4);
   
+  // Convex hooks for Ragie integration
+  const uploadDocumentAction = useAction(api.ragie.uploadDocument);
+  const getDocumentStatusAction = useAction(api.ragie.getDocumentStatus);
+  const updateNodeMutation = useMutation(api.nodes.updateNodeWithRagie);
+  
   // Canvas ID for chat context
   const canvasId = 'canvas_main';
   
-  // Get connected document node IDs for chat context
+  // Check if we have ready documents for AI context (Ragie status = ready)
+  const hasDocuments = nodes.some(node => 
+    node.type === 'documentNode' && 
+    node.data?.ragieStatus === 'ready'
+  );
+  
+  // Get connected document node IDs for chat context (keeping for backward compatibility)
   const connectedNodeIds = nodes
-    .filter(node => node.type === 'documentNode' && node.data?.status === 'ready')
+    .filter(node => node.type === 'documentNode' && node.data?.ragieStatus === 'ready')
     .map(node => node.id);
+  
+  // Aggregate YouTube context from all website nodes with YouTube data
+  const youtubeContext = nodes
+    .filter(node => node.type === 'websiteNode' && node.data?.isYouTube && node.data?.youtubeData)
+    .map(node => YouTubeService.formatForContext(node.data.youtubeData))
+    .join('\n\n---\n\n');
 
   const onConnect: OnConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
@@ -102,155 +126,39 @@ export function HomePage() {
     // await saveNodeContent({ nodeId, content });
   }, [setNodes]);
 
-  // Handle document file upload with comprehensive error handling
+  // Handle document file upload with Ragie integration
   const handleDocumentUpload = useCallback(async (nodeId: string, file: File) => {
-    // Validate file
-    if (file.type !== 'application/pdf') {
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === nodeId
-            ? { 
-                ...node, 
-                data: { 
-                  ...node.data, 
-                  status: 'error',
-                  errorMessage: 'Only PDF files are supported',
-                  fileName: file.name,
-                  fileSize: file.size,
-                } 
-              }
-            : node
-        )
-      );
-      toast.error('Only PDF files are supported');
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('File size exceeds 10MB limit');
-      return;
-    }
-
     try {
-      // Set uploading status
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === nodeId
-            ? { 
-                ...node, 
-                data: { 
-                  ...node.data, 
-                  status: 'uploading',
-                  uploadProgress: 10,
-                  fileName: file.name,
-                  fileSize: file.size,
-                } 
-              }
-            : node
-        )
+      await DocumentService.processDocument(
+        file,
+        nodeId,
+        canvasId,
+        uploadDocumentAction,
+        getDocumentStatusAction,
+        updateNodeMutation,
+        (progress) => {
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId
+                ? { 
+                    ...node, 
+                    data: { 
+                      ...node.data, 
+                      fileName: file.name,
+                      fileSize: file.size,
+                      ragieStatus: progress.stage,
+                      status: progress.stage,
+                    } 
+                  }
+                : node
+            )
+          );
+        }
       );
-
-      // Extract text from PDF using real PDF processing
-      console.log('🔄 Starting real PDF extraction...');
-      const extractionResult = await PDFProcessingService.extractTextFromPDF(file);
-      console.log('✅ PDF extraction complete:', {
-        wordCount: extractionResult.wordCount,
-        pageCount: extractionResult.pageCount,
-        textLength: extractionResult.text.length,
-        method: extractionResult.processingMethod,
-        textPreview: extractionResult.text.substring(0, 200)
-      });
-
-      // Set processing status
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === nodeId
-            ? { 
-                ...node, 
-                data: { 
-                  ...node.data, 
-                  status: 'processing',
-                  uploadProgress: 70,
-                } 
-              }
-            : node
-        )
-      );
-
-      // Upload completed successfully
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === nodeId
-            ? { 
-                ...node, 
-                data: { 
-                  ...node.data, 
-                  status: 'ready',
-                  uploadProgress: 100,
-                  fileName: file.name,
-                  fileSize: file.size,
-                  textContent: extractionResult.text,
-                  pageCount: extractionResult.pageCount,
-                  wordCount: extractionResult.wordCount,
-                  metadata: extractionResult.metadata,
-                } 
-              }
-            : node
-        )
-      );
-
-      toast.success(`${file.name} uploaded successfully!`, {
-        description: `Extracted ${extractionResult.wordCount} words from ${extractionResult.pageCount} pages`
-      });
-
     } catch (error) {
-      // GRACEFUL FALLBACK - Always show success!
-      console.warn('⚠️ PDF extraction failed, using fallback:', error);
-      
-      const estimatedPages = Math.max(1, Math.floor(file.size / (100 * 1024)));
-      const fallbackText = `Document: ${file.name}
-
-File uploaded successfully!
-
-This is a ${(file.size / 1024).toFixed(2)} KB PDF document with approximately ${estimatedPages} page${estimatedPages > 1 ? 's' : ''}.
-
-The document has been saved to your canvas and is ready for use. Text extraction is currently being optimized and will be available in the next update.
-
-You can:
-• Connect this document to other nodes
-• Reference it in your knowledge graph
-• Organize it with related content
-• Use it as part of your learning workflow
-
-Document uploaded: ${new Date().toLocaleString()}`;
-      
-      // Set SUCCESS status with fallback text
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === nodeId
-            ? { 
-                ...node, 
-                data: { 
-                  ...node.data, 
-                  status: 'ready', // Always show success!
-                  uploadProgress: 100,
-                  fileName: file.name,
-                  fileSize: file.size,
-                  textContent: fallbackText,
-                  pageCount: estimatedPages,
-                  wordCount: fallbackText.split(/\s+/).length,
-                } 
-              }
-            : node
-        )
-      );
-      
-      // Show success toast instead of error
-      toast.success(`${file.name} uploaded successfully!`, {
-        description: `Document saved and ready to use`
-      });
+      console.error('Document processing failed:', error);
     }
-  }, [setNodes]);
+  }, [canvasId, uploadDocumentAction, getDocumentStatusAction, updateNodeMutation, setNodes]);
 
   // Remove document from node
   const handleRemoveDocument = useCallback((nodeId: string) => {
@@ -318,6 +226,200 @@ Document uploaded: ${new Date().toLocaleString()}`;
     toast.success('Document node added');
   }, [nodeCounter, setNodes]);
 
+  // Add new image node
+  const addImageNode = useCallback(() => {
+    const newNode: Node = {
+      id: `img-${nodeCounter}`,
+      type: 'imageNode',
+      position: { 
+        x: Math.random() * 400 + 300, 
+        y: Math.random() * 300 + 200 
+      },
+      data: {
+        label: `Image ${nodeCounter}`,
+        status: 'empty',
+      },
+    };
+    
+    setNodes((nds) => [...nds, newNode]);
+    setNodeCounter(c => c + 1);
+    toast.success('Image node added');
+  }, [nodeCounter, setNodes]);
+
+  // Add new website node
+  const addWebsiteNode = useCallback(() => {
+    const newNode: Node = {
+      id: `web-${nodeCounter}`,
+      type: 'websiteNode',
+      position: { 
+        x: Math.random() * 400 + 350, 
+        y: Math.random() * 300 + 250 
+      },
+      data: {
+        label: `Website ${nodeCounter}`,
+        status: 'empty',
+      },
+    };
+    
+    setNodes((nds) => [...nds, newNode]);
+    setNodeCounter(c => c + 1);
+    toast.success('Website node added');
+  }, [nodeCounter, setNodes]);
+
+  // Handle image upload or URL
+  const handleImageUpload = useCallback((nodeId: string, file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imageUrl = e.target?.result as string;
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { 
+                ...node, 
+                data: { 
+                  ...node.data, 
+                  imageUrl,
+                  imageName: file.name,
+                  status: 'ready'
+                } 
+              }
+            : node
+        )
+      );
+      toast.success('Image uploaded');
+    };
+    reader.readAsDataURL(file);
+  }, [setNodes]);
+
+  const handleImageUrl = useCallback((nodeId: string, url: string) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? { 
+              ...node, 
+              data: { 
+                ...node.data, 
+                imageUrl: url,
+                imageName: new URL(url).pathname.split('/').pop() || 'Image',
+                status: 'ready'
+              } 
+            }
+          : node
+      )
+    );
+    toast.success('Image URL added');
+  }, [setNodes]);
+
+  const handleRemoveImage = useCallback((nodeId: string) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? { 
+              ...node, 
+              data: { 
+                label: node.data.label,
+                status: 'empty',
+                imageUrl: undefined,
+                imageName: undefined,
+              } 
+            }
+          : node
+      )
+    );
+    toast.info('Image removed');
+  }, [setNodes]);
+
+  // Handle website URL
+  const handleWebsiteUrl = useCallback(async (nodeId: string, url: string) => {
+    // Check if it's a YouTube URL
+    const isYouTube = YouTubeService.isYouTubeUrl(url);
+    
+    if (isYouTube) {
+      // Set loading state
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, url, status: 'loading' } }
+            : node
+        )
+      );
+      
+      try {
+        const videoId = YouTubeService.extractVideoId(url);
+        if (videoId) {
+          const youtubeData = await YouTubeService.getVideoMetadata(videoId);
+          
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId
+                ? { 
+                    ...node, 
+                    data: { 
+                      ...node.data, 
+                      url,
+                      title: youtubeData.title,
+                      isYouTube: true,
+                      youtubeData,
+                      status: 'ready'
+                    } 
+                  }
+                : node
+            )
+          );
+          
+          toast.success(`YouTube video loaded: ${youtubeData.title}`);
+        }
+      } catch (error) {
+        console.error('Failed to fetch YouTube data:', error);
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? { ...node, data: { ...node.data, status: 'error' } }
+              : node
+          )
+        );
+        toast.error('Failed to load YouTube video');
+      }
+    } else {
+      // Regular website
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { 
+                ...node, 
+                data: { 
+                  ...node.data, 
+                  url,
+                  title: new URL(url).hostname,
+                  status: 'ready'
+                } 
+              }
+            : node
+        )
+      );
+      toast.success('Website added');
+    }
+  }, [setNodes]);
+
+  const handleRemoveWebsite = useCallback((nodeId: string) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? { 
+              ...node, 
+              data: { 
+                label: node.data.label,
+                status: 'empty',
+                url: undefined,
+                title: undefined,
+              } 
+            }
+          : node
+      )
+    );
+    toast.info('Website removed');
+  }, [setNodes]);
+
   // Update nodes with appropriate handlers based on type
   const nodesWithHandlers = nodes.map(node => ({
     ...node,
@@ -333,6 +435,20 @@ Document uploaded: ${new Date().toLocaleString()}`;
         : undefined,
       onRemoveFile: node.type === 'documentNode'
         ? () => handleRemoveDocument(node.id)
+        : undefined,
+      // Image node handlers
+      onImageUpload: node.type === 'imageNode'
+        ? (file: File) => handleImageUpload(node.id, file)
+        : undefined,
+      onUrlChange: node.type === 'imageNode'
+        ? (url: string) => handleImageUrl(node.id, url)
+        : node.type === 'websiteNode'
+        ? (url: string) => handleWebsiteUrl(node.id, url)
+        : undefined,
+      onRemove: node.type === 'imageNode'
+        ? () => handleRemoveImage(node.id)
+        : node.type === 'websiteNode'
+        ? () => handleRemoveWebsite(node.id)
         : undefined,
     }
   }));
@@ -358,7 +474,7 @@ Document uploaded: ${new Date().toLocaleString()}`;
         className="w-full h-full"
       >
         {/* Enhanced Control Panel */}
-        <div className="absolute top-4 left-4 z-10 space-y-2">
+        <div className="absolute top-4 left-4 z-10 space-y-2 w-[320px]">
           <Card className="p-4 shadow-xl">
             <div className="flex items-center gap-3 mb-3">
               <img 
@@ -390,6 +506,24 @@ Document uploaded: ${new Date().toLocaleString()}`;
                 Add Document
               </Button>
               
+              <Button 
+                onClick={addImageNode}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                size="sm"
+              >
+                <Image className="w-4 h-4 mr-2" />
+                Add Image
+              </Button>
+              
+              <Button 
+                onClick={addWebsiteNode}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                size="sm"
+              >
+                <Globe className="w-4 h-4 mr-2" />
+                Add Website
+              </Button>
+              
               <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
                 <div className="flex items-center gap-1">
                   <span className="font-semibold">💡 Text:</span>
@@ -398,6 +532,14 @@ Document uploaded: ${new Date().toLocaleString()}`;
                 <div className="flex items-center gap-1">
                   <span className="font-semibold">📄 Document:</span>
                   <span>Upload PDFs (max 10MB)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold">🖼️ Image:</span>
+                  <span>Upload or paste URL</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold">🌐 Website:</span>
+                  <span>Embed any URL</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="font-semibold">💾 Auto-save:</span>
@@ -461,7 +603,9 @@ Document uploaded: ${new Date().toLocaleString()}`;
       {/* Intelligent Chat Box */}
       <IntelligentChatBox
         canvasId={canvasId}
+        hasDocuments={hasDocuments}
         connectedNodeIds={connectedNodeIds}
+        youtubeContext={youtubeContext}
       />
       
       {/* Toast Notifications */}

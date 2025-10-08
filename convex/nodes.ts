@@ -41,7 +41,6 @@ export const createNode = mutation({
     const now = Date.now();
     return await ctx.db.insert("nodes", {
       ...args,
-      embeddingGenerated: false,
       createdAt: now,
       updatedAt: now,
     });
@@ -59,6 +58,70 @@ export const updateNodeContent = mutation({
       content,
       updatedAt: Date.now(),
     });
+  },
+});
+
+// Track Ragie document metadata separately (for local ReactFlow nodes)
+export const trackRagieDocument = mutation({
+  args: {
+    localNodeId: v.string(), // ReactFlow node ID (e.g., "doc-4")
+    canvasId: v.string(), // Canvas identifier  
+    fileName: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    ragieDocumentId: v.optional(v.string()),
+    ragieStatus: v.optional(v.union(
+      v.literal("uploading"),
+      v.literal("processing"),
+      v.literal("ready"),
+      v.literal("error")
+    )),
+  },
+  handler: async (ctx, { localNodeId, canvasId, ...updates }) => {
+    // Store metadata in a tracking object (client manages state)
+    console.log(`📝 Tracking Ragie document for node ${localNodeId}:`, updates);
+    return { success: true, localNodeId, canvasId, ...updates };
+  },
+});
+
+// DEPRECATED: Use trackRagieDocument instead for local nodes
+// This is kept for backward compatibility with Convex DB nodes
+export const updateNodeWithRagie = mutation({
+  args: {
+    nodeId: v.union(v.id("nodes"), v.string()),
+    canvasId: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    ragieDocumentId: v.optional(v.string()),
+    ragieStatus: v.optional(v.union(
+      v.literal("uploading"),
+      v.literal("processing"),
+      v.literal("ready"),
+      v.literal("error")
+    )),
+  },
+  handler: async (ctx, { nodeId, canvasId, ...updates }) => {
+    // Check if it's a valid Convex ID
+    if (typeof nodeId === 'string' && !nodeId.startsWith('j')) {
+      // It's a local ReactFlow ID, just track it
+      console.log(`📝 Tracking Ragie for local node ${nodeId}:`, updates);
+      return { success: true, nodeId, ...updates };
+    }
+    
+    // Try to update actual Convex node if it exists
+    try {
+      const node = await ctx.db.get(nodeId as any);
+      if (node) {
+        await ctx.db.patch(nodeId as any, {
+          ...updates,
+          updatedAt: Date.now(),
+        });
+        return { success: true, nodeId, updated: true };
+      }
+    } catch (e) {
+      // Node doesn't exist in DB, that's okay for local nodes
+    }
+    
+    return { success: true, nodeId, ...updates };
   },
 });
 
@@ -87,9 +150,7 @@ export const updateProcessingStatus = mutation({
   handler: async (ctx, { nodeId, ...updates }) => {
     await ctx.db.patch(nodeId, {
       ...updates,
-      processingStatus: updates.status,
       updatedAt: Date.now(),
-      lastProcessed: Date.now(),
     });
   },
 });
