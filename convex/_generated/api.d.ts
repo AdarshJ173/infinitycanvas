@@ -19,6 +19,7 @@ import type * as gemini from "../gemini.js";
 import type * as nodes from "../nodes.js";
 import type * as ragService from "../ragService.js";
 import type * as ragie from "../ragie.js";
+import type * as sessions from "../sessions.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   nodes: typeof nodes;
   ragService: typeof ragService;
   ragie: typeof ragie;
+  sessions: typeof sessions;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

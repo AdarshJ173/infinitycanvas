@@ -12,6 +12,35 @@ export default defineSchema({
     lastActiveAt: v.number(),
   }).index("by_email", ["email"]),
 
+  // Session management - for Second Brain feature
+  sessions: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    
+    // Canvas state snapshot
+    nodes: v.array(v.any()), // Complete ReactFlow nodes array
+    edges: v.array(v.any()), // Complete ReactFlow edges array
+    
+    // Session metadata
+    nodeCount: v.number(),
+    edgeCount: v.number(),
+    lastModified: v.number(),
+    
+    // Statistics for visualization
+    stats: v.object({
+      documents: v.number(),
+      textNodes: v.number(),
+      images: v.number(),
+      websites: v.number(),
+      totalWords: v.number(),
+    }),
+    
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_updated", ["updatedAt"])
+    .index("by_created", ["createdAt"]),
+
   // Canvas/workspace management
   canvases: defineTable({
     userId: v.id("users"),

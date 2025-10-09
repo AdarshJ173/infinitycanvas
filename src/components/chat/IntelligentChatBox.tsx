@@ -43,7 +43,9 @@ interface IntelligentChatBoxProps {
   canvasId: string;
   hasDocuments: boolean; // Documents with ragieStatus === 'ready'
   connectedNodeIds?: string[];
-  youtubeContext?: string; // YouTube video context if available
+  youtubeContext?: string; // YouTube video context
+  webContentContext?: string; // Website content from Jina Reader
+  textNodesContext?: string; // Text nodes content
   contextStats?: ContextStats; // Statistics for context badges
   className?: string;
 }
@@ -53,6 +55,8 @@ export function IntelligentChatBox({
   hasDocuments,
   connectedNodeIds = [],
   youtubeContext,
+  webContentContext,
+  textNodesContext,
   contextStats = { documents: 0, youtubeVideos: 0, webArticles: 0, images: 0 },
   className 
 }: IntelligentChatBoxProps) {
@@ -106,14 +110,16 @@ export function IntelligentChatBox({
     setIsGenerating(true);
 
     try {
-      // Generate AI response using YouTube/Ragie/Gemini
+      // Generate AI response using ALL available context
       const aiResponse = await AIService.generateResponse(
         userMessage,
         canvasId,
         hasDocuments,
         generateRagieResponse,
         generateGeminiResponse,
-        youtubeContext
+        youtubeContext,
+        webContentContext,
+        textNodesContext
       );
 
       // Add AI response
@@ -145,7 +151,7 @@ export function IntelligentChatBox({
     } finally {
       setIsGenerating(false);
     }
-  }, [message, isGenerating, canvasId, hasDocuments, generateRagieResponse, generateGeminiResponse, youtubeContext]);
+  }, [message, isGenerating, canvasId, hasDocuments, generateRagieResponse, generateGeminiResponse, youtubeContext, webContentContext, textNodesContext]);
 
   // Handle enter key
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -253,7 +259,19 @@ export function IntelligentChatBox({
                 </Badge>
               )}
 
-              {/* Compact Mode Toggle */}
+              {/* Expand/Collapse Toggle - moved to the right */}
+              {!isCompactMode && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-8 h-8 p-0 ml-2"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                >
+                  {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </Button>
+              )}
+
+              {/* Compact Mode Toggle - now at the far right */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -262,18 +280,6 @@ export function IntelligentChatBox({
               >
                 {isCompactMode ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
-
-              {/* Expand/Collapse Toggle */}
-              {!isCompactMode && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-8 h-8 p-0"
-                  onClick={() => setIsExpanded(!isExpanded)}
-                >
-                  {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                </Button>
-              )}
             </div>
           </div>
 

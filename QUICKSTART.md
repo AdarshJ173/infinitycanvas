@@ -1,197 +1,128 @@
-# 🚀 RAGIE.AI INTEGRATION - QUICK START GUIDE
+# Quick Start Guide - Session Management
 
-## ⚡ Start the Application
+## TL;DR
 
-### 1. Start Convex Backend (Terminal 1)
 ```bash
-npx convex dev
+# Start everything (one command)
+npm run dev:full
 ```
-This will:
-- Connect to your Convex deployment
-- Watch for schema/function changes
-- Auto-deploy updates
-- Keep backend running
 
-### 2. Start Development Server (Terminal 2)
+This will:
+1. Open a new window with Convex backend
+2. Start Vite frontend in current window
+3. Open browser at http://localhost:5173
+
+## Manual Start (Two Terminals)
+
+**Terminal 1:**
+```bash
+npm run convex
+```
+
+**Terminal 2:**
 ```bash
 npm run dev
 ```
-This will:
-- Start Vite dev server (usually on http://localhost:5173)
-- Enable hot module replacement
-- Serve the React application
 
-## 🎯 Test the Ragie Integration
+## First Time Setup
 
-### Step 1: Upload a Document
-1. Click "Add Document" button in the control panel
-2. A document node will appear on the canvas
-3. Click the node or drag & drop a PDF file
-4. Watch the status change:
-   - 🔵 "Uploading to Ragie..." (blue)
-   - 🟡 "Ragie processing..." (yellow)
-   - 🟢 "Ready for AI" ⚡ (green with Zap icon)
-5. Purple indicator shows "Powered by Ragie AI"
+If this is your first time:
 
-### Step 2: Test AI Chat
-1. **Without Documents:**
-   - Chat indicator shows "General AI" (yellow dot)
-   - Ask any general question
-   - Get Gemini-powered responses
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-2. **With Documents:**
-   - Chat indicator changes to "Ragie AI Active" (purple dot)
-   - Ask questions about your uploaded document
-   - Zap badge shows "Context Mode"
-   - AI responses include:
-     - ⚡ Chunk usage indicator
-     - 📚 Source attribution
-     - Context-aware answers
+2. **Start dev environment:**
+   ```bash
+   npm run dev:full
+   ```
 
-## 📋 Expected Behavior
+3. **Wait for Convex:**
+   - Watch for "Convex functions ready" in the Convex window
+   - Should take ~10-15 seconds
 
-### Document Upload Flow
+4. **Open browser:**
+   - Navigate to http://localhost:5173
+   - SessionDialog should appear
+   - Create your first session!
+
+## What You Should See
+
+### Success Indicators
+
+**Convex Window:**
 ```
-Empty Node → Click/Drop PDF → Uploading (🔵) → Processing (🟡) → Ready (🟢⚡)
+Convex functions ready!
 ```
 
-### AI Chat Flow
+**Browser Console:**
 ```
-No Docs: General AI (🟡) → Gemini Responses
-With Docs: Ragie AI (🟣) → Context-Aware Responses + Sources
-```
-
-## 🔧 Troubleshooting
-
-### Issue: "Ragie upload failed"
-**Solution:** 
-- Check `.env.local` has `VITE_RAGIE_API_KEY`
-- Verify API key is correct
-- Check internet connection
-
-### Issue: "Failed to generate response"
-**Solution:**
-- Check `.env.local` has `GEMINI_API_KEY`
-- Verify Gemini API key is valid
-- Check browser console for detailed errors
-
-### Issue: Document stuck in "Processing"
-**Solution:**
-- Wait up to 30 seconds (polling interval)
-- Check Ragie API status
-- Check browser console for errors
-- Retry upload if needed
-
-## 🎨 UI Indicators Guide
-
-### Document Node Status
-- 🔵 **Blue Loader**: Uploading to Ragie
-- 🟡 **Yellow Loader**: Ragie is processing
-- 🟢 **Green Check**: Ready for AI queries
-- 🔴 **Red Alert**: Error occurred
-- 🟣 **Purple Dot**: Ragie-powered document
-- ⚡ **Zap Icon**: AI-searchable
-
-### Chat Status
-- 🟡 **Yellow Dot**: General AI mode
-- 🟣 **Purple Dot**: Ragie AI Active
-- ⚡ **Zap Badge**: Context Mode enabled
-- 📚 **Source List**: Documents referenced in response
-- 🔢 **Chunk Counter**: Number of context chunks used
-
-## 📊 Demo Script (For Investors)
-
-### 1. **Showcase Empty State** (15 seconds)
-- Show clean canvas
-- Highlight "General AI" mode
-- Ask a general question
-- Show fast Gemini response
-
-### 2. **Upload Document** (30 seconds)
-- Add document node
-- Upload a sample PDF (e.g., research paper)
-- Watch real-time status updates
-- Highlight Ragie branding
-- Show "Ready for AI" status
-
-### 3. **Context-Aware Chat** (45 seconds)
-- Ask specific questions about the document
-- Show "Ragie AI Active" indicator
-- Highlight context mode badge
-- Show source attribution
-- Display chunk usage counter
-- Demonstrate accurate, context-aware responses
-
-### 4. **Scaling Story** (30 seconds)
-- Add multiple document nodes
-- Show how system handles multiple documents
-- Emphasize:
-  - Zero complex RAG setup
-  - Instant processing
-  - Production-ready
-  - Enterprise reliability
-
-## 💡 Sample Questions to Try
-
-### General Questions (No Documents)
-- "Explain quantum computing"
-- "How does photosynthesis work?"
-- "What is machine learning?"
-
-### With Sample Research Paper
-- "What are the main findings of this study?"
-- "Summarize the methodology"
-- "What are the key conclusions?"
-- "Who are the authors?"
-
-### With Product Documentation
-- "How do I install this software?"
-- "What are the system requirements?"
-- "Explain the configuration options"
-
-## 🎯 Success Metrics to Highlight
-
-### Performance
-- ⚡ Document processing: 5-30 seconds
-- ⚡ AI responses: 2-5 seconds
-- ⚡ UI responsiveness: Instant feedback
-- ⚡ Real-time status updates
-
-### User Experience
-- 🎨 Clean, professional interface
-- 🎨 Clear visual feedback
-- 🎨 Smooth animations
-- 🎨 Intuitive interactions
-
-### Technical Excellence
-- 🔒 Zero complex setup
-- 🔒 Production-ready
-- 🔒 Enterprise-grade
-- 🔒 Scalable architecture
-
-## 📞 Support Resources
-
-### Documentation
-- `RAGIEAI.md` - Full implementation spec
-- `VALIDATION_REPORT.md` - Comprehensive validation report
-- `README.md` - Project overview
-
-### API References
-- [Ragie API Docs](https://docs.ragie.ai)
-- [Convex Docs](https://docs.convex.dev)
-- [Gemini API Docs](https://ai.google.dev)
-
-### Environment Variables
-```env
-VITE_RAGIE_API_KEY=tnt_QFPVjWDQTK_4jEnLm19mUoXD4JhHxkEUKbfP7APSbJFBAJrhKoYZ5D
-RAGIE_API_KEY=tnt_QFPVjWDQTK_4jEnLm19mUoXD4JhHxkEUKbfP7APSbJFBAJrhKoYZ5D
-GEMINI_API_KEY=AIzaSyDHurY8leKbyNI41y94vWfgKs4AtlaIzis
+Created new session: My First Session
+Session auto-saved to Convex
 ```
 
----
+**Network Tab:**
+- WebSocket connection to `*.convex.cloud`
+- Status: 101 Switching Protocols (WebSocket)
 
-## 🎉 You're All Set!
+### Common Issues
 
-The application is now ready to demonstrate the power of Ragie.AI integration. Enjoy showcasing a production-ready, investor-grade RAG implementation with zero complexity!
+**"Failed to create session"**
+- Convex not running → Start with `npm run convex`
 
-**Happy Demoing! 🌟**
+**"Session management will be available..."**
+- Old localStorage code → Code has been fixed, just start Convex
+
+**Build errors**
+- Run: `npm install`
+- Delete `node_modules` and reinstall if needed
+
+## Features to Test
+
+1. **Create Session**
+   - Click "Create New Session"
+   - Enter name and description
+   - Canvas should clear
+
+2. **Auto-Save**
+   - Add some nodes
+   - Wait 3 seconds
+   - Check console for "Session auto-saved to Convex"
+
+3. **Load Session**
+   - Reload page
+   - Click "Continue Last Session"
+   - Canvas should restore your nodes
+
+4. **Second Brain**
+   - Click "My Second Brain" button (top right)
+   - See force-directed graph
+   - Hover over session nodes
+   - Click to open session
+
+## Architecture
+
+**Why Convex (NOT localStorage)?**
+- Real-time sync across devices
+- Persistent storage
+- Scalable backend
+- Type-safe API
+- Server-side logic
+- localStorage = data loss risk
+
+See `SESSION_ARCHITECTURE.md` for full details.
+
+## Need Help?
+
+1. Check `SESSION_ARCHITECTURE.md` for detailed docs
+2. Look at browser console for errors
+3. Check Convex dashboard: https://dashboard.convex.dev
+4. Verify `.env.local` has `VITE_CONVEX_URL`
+
+## Pro Tips
+
+- **Multiple tabs**: Open multiple browser tabs to see real-time sync
+- **Convex Dashboard**: Monitor database in real-time
+- **Auto-reload**: Vite HMR works, no manual refresh needed
+- **Console logs**: Enable verbose logging for debugging

@@ -9,49 +9,78 @@ export interface AIResponse {
 
 export class AIService {
   
-  // Generate response with Ragie context if available
+  // Generate response with ALL available context types
   static async generateResponse(
     userQuestion: string,
     canvasId: string,
     hasDocuments: boolean = false,
     ragieAction?: any, // useAction(api.ragie.generateResponse)
     geminiAction?: any, // useAction(api.gemini.generateResponse)
-    youtubeContext?: string // YouTube video context if available
+    youtubeContext?: string, // YouTube video context
+    webContentContext?: string, // Website content from Jina Reader
+    textNodesContext?: string // Text nodes content
   ): Promise<AIResponse> {
     
     const startTime = Date.now();
     
-    // Strategy: Try YouTube context first, then Ragie (if docs), then Gemini, then fallback
+    // Strategy: Combine all available contexts, prioritizing richer content
     // NEVER fail - always provide an answer
     
-    // TIER 0: YouTube video context (highest priority)
-    if (youtubeContext && geminiAction) {
+    // Build combined context from all sources
+    const contextSources: string[] = [];
+    const contextParts: string[] = [];
+    let totalContexts = 0;
+    
+    // Add YouTube video context
+    if (youtubeContext) {
+      contextParts.push(`YOUTUBE VIDEO INFORMATION:\n${youtubeContext}`);
+      contextSources.push('YouTube Video');
+      totalContexts++;
+    }
+    
+    // Add web content context
+    if (webContentContext) {
+      contextParts.push(`WEBSITE CONTENT:\n${webContentContext}`);
+      contextSources.push('Web Article');
+      totalContexts++;
+    }
+    
+    // Add text nodes context
+    if (textNodesContext) {
+      contextParts.push(`TEXT NOTES:\n${textNodesContext}`);
+      contextSources.push('Text Notes');
+      totalContexts++;
+    }
+    
+    // TIER 0: Use combined node contexts (YouTube + Web + Text)
+    if (contextParts.length > 0 && geminiAction) {
       try {
-        console.log('🎥 Using YouTube video context...');
+        console.log(`🌐 Using ${totalContexts} node context(s): ${contextSources.join(', ')}`);
         
-        const contextualPrompt = `Based on the following YouTube video information, answer the user's question accurately.
+        const combinedContext = contextParts.join('\n\n---\n\n');
+        
+        const contextualPrompt = `Based on the following information from the user's canvas, answer their question accurately.
 
-VIDEO INFORMATION:
-${youtubeContext}
+${combinedContext}
 
 QUESTION: ${userQuestion}
 
-Provide a detailed answer based on the video information above.`;
+Provide a detailed answer based on the information above. Reference the specific sources when relevant.`;
         
         const geminiResponse = await geminiAction({
           query: contextualPrompt,
           hasDocuments: true,
         });
         
-        console.log('✅ Response generated with YouTube context');
+        console.log(`✅ Response generated with ${totalContexts} node context(s)`);
         return {
           response: geminiResponse.response,
-          contextsUsed: 1,
-          sourcesReferenced: ['YouTube Video'],
+          contextsUsed: totalContexts,
+          sourcesReferenced: contextSources,
           processingTimeMs: Date.now() - startTime,
         };
       } catch (error) {
-        console.warn('⚠️ YouTube context failed:', error);
+        console.warn('⚠️ Node context failed:', error);
         // Continue to Ragie
       }
     }
