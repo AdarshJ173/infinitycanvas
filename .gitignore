@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Documentation with potential secrets
+docs/GROQ_MIGRATION.md
+
 # Logs
 logs
 *.log
