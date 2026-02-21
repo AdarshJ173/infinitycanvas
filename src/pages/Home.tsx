@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -25,7 +25,7 @@ import { ConfirmDialog } from '@/components/dialogs/ConfirmDialog';
 import { DocumentService } from '@/services/documentService';
 import YouTubeService from '@/services/youtubeService';
 import JinaService from '@/services/jinaService';
-import { useConvex, useAction, useMutation, useQuery } from 'convex/react';
+import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Plus, FileText, File, Brain, Image, Globe, Sparkles, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
@@ -34,50 +34,12 @@ import { Id } from '../../convex/_generated/dataModel';
 import 'reactflow/dist/style.css';
 
 // Define custom node types
-const nodeTypes = {
+const nodeTypesConfig = {
   textNode: TextNode,
   documentNode: DocumentNode,
   imageNode: ImageNode,
   websiteNode: WebsiteNode,
 };
-
-const initialNodes: Node[] = [
-  {
-    id: '1',
-    type: 'textNode',
-    position: { x: 250, y: 100 },
-    data: { 
-      label: 'Start Node',
-      content: 'Welcome to Neuron! This is your first text node.\n\nDouble-click anywhere to edit this content and start building your knowledge graph.\n\nConnect nodes by dragging from the handles on the sides.',
-      name: 'Getting Started'
-    },
-  },
-  {
-    id: '2',
-    type: 'textNode',
-    position: { x: 650, y: 100 },
-    data: { 
-      label: 'Ideas Node',
-      content: '',
-      name: 'My Ideas'
-    },
-  },
-  {
-    id: '3',
-    type: 'textNode',
-    position: { x: 450, y: 300 },
-    data: { 
-      label: 'Notes Node',
-      content: '',
-      name: 'Quick Notes'
-    },
-  },
-];
-
-const initialEdges = [
-  { id: 'e1-2', source: '1', target: '2', animated: true },
-  { id: 'e1-3', source: '1', target: '3', animated: true },
-];
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -91,8 +53,7 @@ export function HomePage() {
   const [currentSessionId, setCurrentSessionId] = useState<Id<"sessions"> | null>(null);
   const [currentSessionName, setCurrentSessionName] = useState<string>('Untitled Session');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const autoSaveTimeoutRef = useRef<number | undefined>(undefined);
-  
+
   // Convex hooks
   const uploadDocumentAction = useAction(api.ragie.uploadDocument);
   const getDocumentStatusAction = useAction(api.ragie.getDocumentStatus);
@@ -103,16 +64,19 @@ export function HomePage() {
   const deleteSessionMutation = useMutation(api.sessions.deleteSession);
   const allSessions = useQuery(api.sessions.getAllSessions);
   const lastSession = useQuery(api.sessions.getLastSession);
-  
+
+  // Memoize nodeTypes to prevent React Flow warning
+  const nodeTypes = React.useMemo(() => nodeTypesConfig, []);
+
   // Canvas ID for chat context
   const canvasId = currentSessionId ? `session_${currentSessionId}` : 'canvas_main';
-  
+
   // Check if we have ready documents for AI context (Ragie status = ready)
-  const hasDocuments = nodes.some(node => 
-    node.type === 'documentNode' && 
+  const hasDocuments = nodes.some(node =>
+    node.type === 'documentNode' &&
     node.data?.ragieStatus === 'ready'
   );
-  
+
   // Debug: Log document status
   useEffect(() => {
     const docNodes = nodes.filter(n => n.type === 'documentNode');
@@ -127,33 +91,30 @@ export function HomePage() {
     });
     console.log('  hasDocuments (for AI):', hasDocuments);
   }, [nodes, hasDocuments]);
-  
+
   // Get connected document node IDs for chat context (keeping for backward compatibility)
   const connectedNodeIds = nodes
     .filter(node => node.type === 'documentNode' && node.data?.ragieStatus === 'ready')
     .map(node => node.id);
-  
+
   // Aggregate YouTube context from all website nodes with YouTube data
   const youtubeContext = nodes
     .filter(node => node.type === 'websiteNode' && node.data?.isYouTube && node.data?.youtubeData)
     .map(node => YouTubeService.formatForContext(node.data.youtubeData))
     .join('\n\n---\n\n');
-  
+
   // Aggregate Jina Reader web content context from all non-YouTube website nodes
   const webContentContext = nodes
     .filter(node => node.type === 'websiteNode' && !node.data?.isYouTube && node.data?.jinaData && node.data?.jinaData?.success)
     .map(node => JinaService.formatForContext(node.data.jinaData))
     .join('\n\n---\n\n');
-  
-  // Combine all website context (YouTube + Jina Reader)
-  const websiteContext = [youtubeContext, webContentContext].filter(Boolean).join('\n\n===\n\n');
-  
+
   // Aggregate all text nodes as additional context
   const textNodesContext = nodes
     .filter(node => node.type === 'textNode' && node.data?.content)
     .map(node => `[Text Node: ${node.data.name || 'Untitled'}]\n${node.data.content}`)
     .join('\n\n---\n\n');
-  
+
   // Calculate context statistics for chat UI
   const contextStats = {
     documents: nodes.filter(node => node.type === 'documentNode' && node.data?.ragieStatus === 'ready').length,
@@ -237,7 +198,7 @@ export function HomePage() {
       setNodes([]);
       setEdges([]);
       setShowSessionDialog(false);
-      
+
       toast.success(`✅ Created new session: ${name}`);
     } catch (error) {
       console.error('Failed to create session:', error);
@@ -252,7 +213,7 @@ export function HomePage() {
       console.log('📊 Session has:', session.nodes?.length || 0, 'nodes,', session.edges?.length || 0, 'edges');
       console.log('📦 Nodes data:', JSON.stringify(session.nodes, null, 2));
       console.log('🔗 Edges data:', JSON.stringify(session.edges, null, 2));
-      
+
       // Validate nodes structure
       session.nodes?.forEach((node: any, index: number) => {
         console.log(`Node ${index}:`, {
@@ -263,18 +224,18 @@ export function HomePage() {
           dataKeys: node.data ? Object.keys(node.data) : [],
         });
       });
-      
+
       // CRITICAL: Set session ID FIRST to prevent auto-save race condition
       setCurrentSessionId(sessionId as any);
       setCurrentSessionName(session.name);
-      
+
       // Then set nodes and edges
       setNodes(session.nodes || []);
       setEdges(session.edges || []);
-      
+
       setShowSessionDialog(false);
       toast.success(`📂 Loaded session: ${session.name}`);
-      
+
       console.log('✅ Session loaded successfully');
     } else {
       console.error('❌ Session not found:', sessionId);
@@ -303,11 +264,11 @@ export function HomePage() {
 
   const confirmDeleteSession = useCallback(async () => {
     if (!sessionToDelete) return;
-    
+
     try {
       await deleteSessionMutation({ sessionId: sessionToDelete.id as Id<"sessions"> });
       toast.success(`🗑️ Deleted session: ${sessionToDelete.name}`);
-      
+
       // If deleted session was active, clear canvas
       if (currentSessionId === sessionToDelete.id) {
         setCurrentSessionId(null);
@@ -338,10 +299,10 @@ export function HomePage() {
           : node
       )
     );
-    
+
     // This is where you'd save to Convex backend
     console.log(`💾 Node ${nodeId} saved:`, content.substring(0, 50) + '...');
-    
+
     // TODO: Add Convex mutation here
     // await saveNodeContent({ nodeId, content });
   }, [setNodes]);
@@ -360,16 +321,16 @@ export function HomePage() {
           setNodes((nds) =>
             nds.map((node) =>
               node.id === nodeId
-                ? { 
-                    ...node, 
-                    data: { 
-                      ...node.data, 
-                      fileName: file.name,
-                      fileSize: file.size,
-                      ragieStatus: progress.stage,
-                      status: progress.stage,
-                    } 
+                ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    ragieStatus: progress.stage,
+                    status: progress.stage,
                   }
+                }
                 : node
             )
           );
@@ -385,20 +346,20 @@ export function HomePage() {
     setNodes((nds) =>
       nds.map((node) =>
         node.id === nodeId
-          ? { 
-              ...node, 
-              data: { 
-                label: node.data.label,
-                status: 'empty',
-                fileName: undefined,
-                fileSize: undefined,
-                textContent: undefined,
-                fileUrl: undefined,
-                uploadProgress: undefined,
-                errorMessage: undefined,
-                pageCount: undefined,
-              } 
+          ? {
+            ...node,
+            data: {
+              label: node.data.label,
+              status: 'empty',
+              fileName: undefined,
+              fileSize: undefined,
+              textContent: undefined,
+              fileUrl: undefined,
+              uploadProgress: undefined,
+              errorMessage: undefined,
+              pageCount: undefined,
             }
+          }
           : node
       )
     );
@@ -410,9 +371,9 @@ export function HomePage() {
     const newNode: Node = {
       id: `text-${nodeCounter}`,
       type: 'textNode',
-      position: { 
-        x: Math.random() * 400 + 200, 
-        y: Math.random() * 300 + 100 
+      position: {
+        x: Math.random() * 400 + 200,
+        y: Math.random() * 300 + 100
       },
       data: {
         label: `Text ${nodeCounter}`,
@@ -420,7 +381,7 @@ export function HomePage() {
         name: `Text Node ${nodeCounter}`,
       },
     };
-    
+
     setNodes((nds) => [...nds, newNode]);
     setNodeCounter(c => c + 1);
     toast.success('Text node added');
@@ -431,16 +392,16 @@ export function HomePage() {
     const newNode: Node = {
       id: `doc-${nodeCounter}`,
       type: 'documentNode',
-      position: { 
-        x: Math.random() * 400 + 250, 
-        y: Math.random() * 300 + 150 
+      position: {
+        x: Math.random() * 400 + 250,
+        y: Math.random() * 300 + 150
       },
       data: {
         label: `Document ${nodeCounter}`,
         status: 'empty',
       },
     };
-    
+
     setNodes((nds) => [...nds, newNode]);
     setNodeCounter(c => c + 1);
     toast.success('Document node added');
@@ -451,16 +412,16 @@ export function HomePage() {
     const newNode: Node = {
       id: `img-${nodeCounter}`,
       type: 'imageNode',
-      position: { 
-        x: Math.random() * 400 + 300, 
-        y: Math.random() * 300 + 200 
+      position: {
+        x: Math.random() * 400 + 300,
+        y: Math.random() * 300 + 200
       },
       data: {
         label: `Image ${nodeCounter}`,
         status: 'empty',
       },
     };
-    
+
     setNodes((nds) => [...nds, newNode]);
     setNodeCounter(c => c + 1);
     toast.success('Image node added');
@@ -471,16 +432,16 @@ export function HomePage() {
     const newNode: Node = {
       id: `web-${nodeCounter}`,
       type: 'websiteNode',
-      position: { 
-        x: Math.random() * 400 + 350, 
-        y: Math.random() * 300 + 250 
+      position: {
+        x: Math.random() * 400 + 350,
+        y: Math.random() * 300 + 250
       },
       data: {
         label: `Website ${nodeCounter}`,
         status: 'empty',
       },
     };
-    
+
     setNodes((nds) => [...nds, newNode]);
     setNodeCounter(c => c + 1);
     toast.success('Website node added');
@@ -494,15 +455,15 @@ export function HomePage() {
       setNodes((nds) =>
         nds.map((node) =>
           node.id === nodeId
-            ? { 
-                ...node, 
-                data: { 
-                  ...node.data, 
-                  imageUrl,
-                  imageName: file.name,
-                  status: 'ready'
-                } 
+            ? {
+              ...node,
+              data: {
+                ...node.data,
+                imageUrl,
+                imageName: file.name,
+                status: 'ready'
               }
+            }
             : node
         )
       );
@@ -515,15 +476,15 @@ export function HomePage() {
     setNodes((nds) =>
       nds.map((node) =>
         node.id === nodeId
-          ? { 
-              ...node, 
-              data: { 
-                ...node.data, 
-                imageUrl: url,
-                imageName: new URL(url).pathname.split('/').pop() || 'Image',
-                status: 'ready'
-              } 
+          ? {
+            ...node,
+            data: {
+              ...node.data,
+              imageUrl: url,
+              imageName: new URL(url).pathname.split('/').pop() || 'Image',
+              status: 'ready'
             }
+          }
           : node
       )
     );
@@ -534,15 +495,15 @@ export function HomePage() {
     setNodes((nds) =>
       nds.map((node) =>
         node.id === nodeId
-          ? { 
-              ...node, 
-              data: { 
-                label: node.data.label,
-                status: 'empty',
-                imageUrl: undefined,
-                imageName: undefined,
-              } 
+          ? {
+            ...node,
+            data: {
+              label: node.data.label,
+              status: 'empty',
+              imageUrl: undefined,
+              imageName: undefined,
             }
+          }
           : node
       )
     );
@@ -553,7 +514,7 @@ export function HomePage() {
   const handleWebsiteUrl = useCallback(async (nodeId: string, url: string) => {
     // Check if it's a YouTube URL
     const isYouTube = YouTubeService.isYouTubeUrl(url);
-    
+
     if (isYouTube) {
       // Set loading state
       setNodes((nds) =>
@@ -563,30 +524,30 @@ export function HomePage() {
             : node
         )
       );
-      
+
       try {
         const videoId = YouTubeService.extractVideoId(url);
         if (videoId) {
           const youtubeData = await YouTubeService.getVideoMetadata(videoId);
-          
+
           setNodes((nds) =>
             nds.map((node) =>
               node.id === nodeId
-                ? { 
-                    ...node, 
-                    data: { 
-                      ...node.data, 
-                      url,
-                      title: youtubeData.title,
-                      isYouTube: true,
-                      youtubeData,
-                      status: 'ready'
-                    } 
+                ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    url,
+                    title: youtubeData.title,
+                    isYouTube: true,
+                    youtubeData,
+                    status: 'ready'
                   }
+                }
                 : node
             )
           );
-          
+
           toast.success(`YouTube video loaded: ${youtubeData.title}`);
         }
       } catch (error) {
@@ -609,58 +570,58 @@ export function HomePage() {
             : node
         )
       );
-      
+
       try {
         console.log('🔍 Extracting content with Jina Reader...');
         const jinaData = await JinaService.extractContent(url);
-        
+
         if (jinaData.success) {
           // Get content summary for node display
           const contentSummary = JinaService.getContentSummary(jinaData.content, 300);
           const readingTime = JinaService.estimateReadingTime(jinaData.content);
           const keyTopics = JinaService.extractKeyTopics(jinaData.content, 5);
-          
+
           setNodes((nds) =>
             nds.map((node) =>
               node.id === nodeId
-                ? { 
-                    ...node, 
-                    data: { 
-                      ...node.data, 
-                      url,
-                      title: jinaData.title,
-                      isYouTube: false,
-                      jinaData,
-                      contentSummary,
-                      readingTime,
-                      keyTopics,
-                      status: 'ready'
-                    } 
+                ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    url,
+                    title: jinaData.title,
+                    isYouTube: false,
+                    jinaData,
+                    contentSummary,
+                    readingTime,
+                    keyTopics,
+                    status: 'ready'
                   }
+                }
                 : node
             )
           );
-          
+
           toast.success(`Content extracted: ${jinaData.title}`);
         } else {
           // Extraction failed, but still set basic info
           setNodes((nds) =>
             nds.map((node) =>
               node.id === nodeId
-                ? { 
-                    ...node, 
-                    data: { 
-                      ...node.data, 
-                      url,
-                      title: new URL(url).hostname,
-                      status: 'ready',
-                      jinaData: { ...jinaData, success: false }
-                    } 
+                ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    url,
+                    title: new URL(url).hostname,
+                    status: 'ready',
+                    jinaData: { ...jinaData, success: false }
                   }
+                }
                 : node
             )
           );
-          
+
           toast.warning('Website added (content extraction unavailable)');
         }
       } catch (error) {
@@ -668,15 +629,15 @@ export function HomePage() {
         setNodes((nds) =>
           nds.map((node) =>
             node.id === nodeId
-              ? { 
-                  ...node, 
-                  data: { 
-                    ...node.data, 
-                    url,
-                    title: new URL(url).hostname,
-                    status: 'error'
-                  } 
+              ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  url,
+                  title: new URL(url).hostname,
+                  status: 'error'
                 }
+              }
               : node
           )
         );
@@ -689,15 +650,15 @@ export function HomePage() {
     setNodes((nds) =>
       nds.map((node) =>
         node.id === nodeId
-          ? { 
-              ...node, 
-              data: { 
-                label: node.data.label,
-                status: 'empty',
-                url: undefined,
-                title: undefined,
-              } 
+          ? {
+            ...node,
+            data: {
+              label: node.data.label,
+              status: 'empty',
+              url: undefined,
+              title: undefined,
             }
+          }
           : node
       )
     );
@@ -727,13 +688,13 @@ export function HomePage() {
       onUrlChange: node.type === 'imageNode'
         ? (url: string) => handleImageUrl(node.id, url)
         : node.type === 'websiteNode'
-        ? (url: string) => handleWebsiteUrl(node.id, url)
-        : undefined,
+          ? (url: string) => handleWebsiteUrl(node.id, url)
+          : undefined,
       onRemove: node.type === 'imageNode'
         ? () => handleRemoveImage(node.id)
         : node.type === 'websiteNode'
-        ? () => handleRemoveWebsite(node.id)
-        : undefined,
+          ? () => handleRemoveWebsite(node.id)
+          : undefined,
     }
   }));
 
@@ -741,7 +702,7 @@ export function HomePage() {
     <div className="w-full h-screen bg-background">
       {/* Canvas Title & Second Brain Button */}
       <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-40">
-        <motion.div 
+        <motion.div
           className="flex items-center gap-4"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -762,11 +723,11 @@ export function HomePage() {
       >
         <Button
           onClick={() => navigate('/second-brain')}
-          className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white shadow-lg"
-          size="lg"
+          className="h-10 px-4 rounded-full bg-foreground text-background hover:bg-foreground/90 shadow-xl shadow-black/10 border border-border/50 hover:border-foreground/20 transition-all duration-200 hover:scale-105 active:scale-95"
+          size="sm"
         >
-          <Sparkles className="w-5 h-5 mr-2" />
-          My Second Brain
+          <Sparkles className="w-4 h-4 mr-2" />
+          <span className="text-sm font-medium">Second Brain</span>
         </Button>
       </motion.div>
 
@@ -777,17 +738,17 @@ export function HomePage() {
         className="w-full h-full"
       >
         {/* Enhanced Control Panel - Collapsible */}
-        <motion.div 
+        <motion.div
           className="absolute top-4 z-10 space-y-2"
           initial={{ x: 0 }}
-          animate={{ 
+          animate={{
             x: isSidebarCollapsed ? -336 : 0,
             left: isSidebarCollapsed ? 0 : 16
           }}
-          transition={{ 
-            type: "spring", 
-            stiffness: 300, 
-            damping: 30 
+          transition={{
+            type: "spring",
+            stiffness: 300,
+            damping: 30
           }}
         >
           <Card className="p-4 shadow-xl w-[320px] relative">
@@ -805,20 +766,20 @@ export function HomePage() {
                 <ChevronLeft className="h-4 w-4" />
               )}
             </Button>
-            
+
             <div className="flex items-center gap-3 mb-3">
-              <img 
-                src="/logoNobg.svg" 
-                alt="Neuron Logo" 
+              <img
+                src="/logoNobg.svg"
+                alt="Neuron Logo"
                 className="h-8 w-8 object-contain"
               />
               <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 Neuron Canvas
               </h1>
             </div>
-            
+
             <div className="space-y-2">
-              <Button 
+              <Button
                 onClick={addTextNode}
                 className="w-full bg-primary hover:bg-primary/90"
                 size="sm"
@@ -826,8 +787,8 @@ export function HomePage() {
                 <Plus className="w-4 h-4 mr-2" />
                 Add Text Node
               </Button>
-              
-              <Button 
+
+              <Button
                 onClick={addDocumentNode}
                 className="w-full bg-orange-600 hover:bg-orange-700 text-white"
                 size="sm"
@@ -835,8 +796,8 @@ export function HomePage() {
                 <File className="w-4 h-4 mr-2" />
                 Add Document
               </Button>
-              
-              <Button 
+
+              <Button
                 onClick={addImageNode}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 size="sm"
@@ -844,8 +805,8 @@ export function HomePage() {
                 <Image className="w-4 h-4 mr-2" />
                 Add Image
               </Button>
-              
-              <Button 
+
+              <Button
                 onClick={addWebsiteNode}
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                 size="sm"
@@ -853,7 +814,7 @@ export function HomePage() {
                 <Globe className="w-4 h-4 mr-2" />
                 Add Website
               </Button>
-              
+
               <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
                 <div className="flex items-center gap-1">
                   <span className="font-semibold">💡 Text:</span>
@@ -876,7 +837,7 @@ export function HomePage() {
                   <span>Instant</span>
                 </div>
               </div>
-              
+
               <div className="text-xs text-muted-foreground/70 pt-2">
                 <div className="flex items-center justify-between">
                   <span>Nodes: {nodes.length}</span>
@@ -912,12 +873,12 @@ export function HomePage() {
                 New
               </Button>
             </div>
-            
+
             {/* Current Session Indicator */}
             <div className="text-xs text-muted-foreground mb-3 pb-2 border-b border-border">
               <span className="text-foreground/60">Current:</span> <span className="font-semibold text-primary">{currentSessionName}</span>
             </div>
-            
+
             {/* Session List - Scrollable */}
             <div className="flex-1 overflow-y-auto space-y-1.5 min-h-0 custom-scrollbar">
               {allSessions && allSessions.length > 0 ? (
@@ -929,7 +890,7 @@ export function HomePage() {
                     hour: '2-digit',
                     minute: '2-digit'
                   });
-                  
+
                   return (
                     <motion.div
                       key={session._id}
@@ -947,51 +908,49 @@ export function HomePage() {
                           className={`
                             w-full text-left p-3 rounded-lg transition-all duration-200
                             border-2 cursor-pointer relative
-                            ${
-                              isActive 
-                                ? 'bg-primary/20 border-primary shadow-md shadow-primary/20' 
-                                : 'bg-card/50 border-border/50 hover:bg-accent hover:border-accent-foreground/20'
+                            ${isActive
+                              ? 'bg-primary/20 border-primary shadow-md shadow-primary/20'
+                              : 'bg-card/50 border-border/50 hover:bg-accent hover:border-accent-foreground/20'
                             }
                           `}
                           disabled={isActive}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0 pr-8">
-                            <div className="flex items-center gap-2 mb-1">
-                              {isActive && (
-                                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                              <div className="flex items-center gap-2 mb-1">
+                                {isActive && (
+                                  <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                )}
+                                <h3 className={`font-semibold text-sm truncate ${isActive ? 'text-primary' : 'text-foreground'
+                                  }`}>
+                                  {session.name}
+                                </h3>
+                              </div>
+
+                              {session.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-1 mb-1.5">
+                                  {session.description}
+                                </p>
                               )}
-                              <h3 className={`font-semibold text-sm truncate ${
-                                isActive ? 'text-primary' : 'text-foreground'
-                              }`}>
-                                {session.name}
-                              </h3>
-                            </div>
-                            
-                            {session.description && (
-                              <p className="text-xs text-muted-foreground line-clamp-1 mb-1.5">
-                                {session.description}
-                              </p>
-                            )}
-                            
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <FileText className="w-3 h-3" />
-                                {session.nodeCount || 0}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Globe className="w-3 h-3" />
-                                {session.edgeCount || 0}
-                              </span>
+
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <FileText className="w-3 h-3" />
+                                  {session.nodeCount || 0}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Globe className="w-3 h-3" />
+                                  {session.edgeCount || 0}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        
+
                           <div className="text-xs text-muted-foreground/70 mt-2">
                             {lastModifiedDate}
                           </div>
                         </button>
-                        
+
                         {/* Delete Button - Shows on hover */}
                         <button
                           onClick={(e) => handleDeleteSession(session._id, session.name, e)}
@@ -1011,7 +970,7 @@ export function HomePage() {
                 </div>
               )}
             </div>
-            
+
             {/* Footer Info */}
             {allSessions && allSessions.length > 0 && (
               <div className="text-xs text-muted-foreground pt-3 mt-2 border-t border-border text-center">
@@ -1020,7 +979,7 @@ export function HomePage() {
             )}
           </Card>
         </motion.div>
-        
+
         <ReactFlow
           key={currentSessionId || 'no-session'}
           nodes={nodesWithHandlers}
@@ -1038,7 +997,7 @@ export function HomePage() {
           }}
         >
           <Controls className="dark:bg-card dark:border-border" />
-          <MiniMap 
+          <MiniMap
             className="dark:bg-card dark:border-border"
             nodeColor={(node) => {
               if (node.type === 'documentNode') return '#ea580c'; // orange-600
@@ -1046,30 +1005,29 @@ export function HomePage() {
             }}
             maskColor="rgba(0, 0, 0, 0.2)"
           />
-          <Background 
-            variant={BackgroundVariant.Dots} 
-            gap={16} 
-            size={1} 
-            className="dark:opacity-20" 
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={16}
+            size={1}
+            className="dark:opacity-20"
           />
         </ReactFlow>
       </motion.div>
-      
+
       {/* Intelligent Chat Box */}
       <IntelligentChatBox
         canvasId={canvasId}
         hasDocuments={hasDocuments}
-        connectedNodeIds={connectedNodeIds}
         youtubeContext={youtubeContext}
         webContentContext={webContentContext}
         textNodesContext={textNodesContext}
         contextStats={contextStats}
       />
-      
+
       {/* Toast Notifications */}
-      <Toaster 
-        position="top-right" 
-        richColors 
+      <Toaster
+        position="top-right"
+        richColors
         closeButton
         toastOptions={{
           style: {

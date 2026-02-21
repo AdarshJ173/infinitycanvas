@@ -1,23 +1,21 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
-import { 
-  Send, 
-  Minimize2, 
-  Maximize2, 
-  Brain, 
-  FileText, 
+import {
+  Send,
   Loader2,
-  ChevronUp,
-  ChevronDown,
-  Zap
+  X,
+  Sparkles,
+  CornerDownLeft,
+  Maximize2,
+  Minimize2,
+  ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { useQuery, useMutation, useAction, useConvex } from 'convex/react';
+import { useAction } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { toast } from 'sonner';
 import AIService from '@/services/aiService';
@@ -41,88 +39,88 @@ interface ContextStats {
 
 interface IntelligentChatBoxProps {
   canvasId: string;
-  hasDocuments: boolean; // Documents with ragieStatus === 'ready'
-  connectedNodeIds?: string[];
-  youtubeContext?: string; // YouTube video context
-  webContentContext?: string; // Website content from Jina Reader
-  textNodesContext?: string; // Text nodes content
-  contextStats?: ContextStats; // Statistics for context badges
+  hasDocuments: boolean;
+  youtubeContext?: string;
+  webContentContext?: string;
+  textNodesContext?: string;
+  contextStats?: ContextStats;
   className?: string;
 }
 
-export function IntelligentChatBox({ 
-  canvasId, 
+export function IntelligentChatBox({
+  canvasId,
   hasDocuments,
-  connectedNodeIds = [],
   youtubeContext,
   webContentContext,
   textNodesContext,
   contextStats = { documents: 0, youtubeVideos: 0, webArticles: 0, images: 0 },
-  className 
+  className
 }: IntelligentChatBoxProps) {
-  // State management
   const generateRagieResponse = useAction(api.ragie.generateResponse);
-  const generateGeminiResponse = useAction(api.gemini.generateResponse);
+  const generateGroqResponse = useAction(api.groq.generateResponse);
   const [message, setMessage] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isCompactMode, setIsCompactMode] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: hasDocuments 
-        ? 'Hello! I can now answer questions about your uploaded documents using Ragie AI.' 
-        : 'Hello! I\'m Neuron AI. Upload some documents to get contextual answers, or ask me anything!',
+      content: hasDocuments
+        ? "I'm ready to answer questions about your uploaded documents."
+        : "Upload documents, add websites, or create text nodes to build your knowledge base. Ask me anything.",
       timestamp: Date.now(),
     }
   ]);
 
-  // Refs
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when messages change
+  const totalContexts = contextStats.documents + contextStats.youtubeVideos + contextStats.webArticles + contextStats.images;
+
   useEffect(() => {
-    // Scroll to the bottom element
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [messages, isGenerating]);
 
-  // Handle message sending
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 200);
+    }
+  }, [isOpen]);
+
   const handleSendMessage = useCallback(async () => {
     if (!message.trim() || isGenerating) return;
 
     const userMessage = message.trim();
     const messageId = `msg_${Date.now()}`;
-    
-    // Add user message immediately
+
     const newUserMessage: Message = {
       id: messageId,
       role: 'user',
       content: userMessage,
       timestamp: Date.now(),
     };
-    
+
     setMessages(prev => [...prev, newUserMessage]);
     setMessage('');
     setIsGenerating(true);
 
+    if (!isOpen) setIsOpen(true);
+
     try {
-      // Generate AI response using ALL available context
       const aiResponse = await AIService.generateResponse(
         userMessage,
         canvasId,
         hasDocuments,
         generateRagieResponse,
-        generateGeminiResponse,
+        generateGroqResponse,
         youtubeContext,
         webContentContext,
         textNodesContext
       );
 
-      // Add AI response
       const aiMessage: Message = {
         id: `ai_${Date.now()}`,
         role: 'assistant',
@@ -134,26 +132,21 @@ export function IntelligentChatBox({
       };
 
       setMessages(prev => [...prev, aiMessage]);
-
     } catch (error) {
-      console.error('❌ Failed to generate AI response:', error);
-      
-      // Add error message
+      console.error('Failed to generate AI response:', error);
       const errorMessage: Message = {
         id: `error_${Date.now()}`,
         role: 'assistant',
-        content: 'I apologize, but I encountered an error processing your question. Please try again or rephrase your question.',
+        content: 'I encountered an error processing your request. Please try again.',
         timestamp: Date.now(),
       };
-      
       setMessages(prev => [...prev, errorMessage]);
       toast.error('Failed to generate response');
     } finally {
       setIsGenerating(false);
     }
-  }, [message, isGenerating, canvasId, hasDocuments, generateRagieResponse, generateGeminiResponse, youtubeContext, webContentContext, textNodesContext]);
+  }, [message, isGenerating, canvasId, hasDocuments, generateRagieResponse, generateGroqResponse, youtubeContext, webContentContext, textNodesContext, isOpen]);
 
-  // Handle enter key
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -161,308 +154,256 @@ export function IntelligentChatBox({
     }
   };
 
-  // Auto-expand based on content
-  const shouldAutoExpand = message.length > 50 || isGenerating || messages.length > 2;
-
-  // Dynamic height calculation
-  const getMaxHeight = () => {
-    if (isCompactMode) return '60px';
-    if (isExpanded || shouldAutoExpand) return '500px';
-    return '150px';
+  const formatTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
   };
 
+  const panelHeight = isMaximized ? 'h-[85vh]' : 'h-[480px]';
+  const panelWidth = isMaximized ? 'max-w-3xl' : 'max-w-xl';
+
   return (
-    <motion.div
-      className={cn(
-        "fixed bottom-6 z-50",
-        "left-0 right-0 mx-auto",
-        "w-full max-w-3xl px-4",
-        className
-      )}
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-    >
-      <div className="relative">
-        {/* Chat Container */}
-        <motion.div
-          className="bg-card/95 backdrop-blur-md border-2 border-border rounded-2xl shadow-2xl overflow-hidden"
-          animate={{ 
-            height: getMaxHeight(),
-          }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-        >
-          {/* Header Bar */}
-          <div className="flex items-center justify-between p-3 border-b border-border/50 bg-muted/20">
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Brain className={cn(
-                  "w-5 h-5 transition-colors",
-                  hasDocuments ? "text-green-500" : "text-primary"
-                )} />
-                {hasDocuments && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                )}
+    <>
+      {/* Floating Trigger Button - Center Bottom */}
+      <motion.button
+        onClick={() => setIsOpen(true)}
+        className={cn(
+          "fixed bottom-6 left-1/2 -translate-x-1/2 z-40",
+          "flex items-center gap-2",
+          "h-12 px-5 rounded-full",
+          "bg-foreground text-background",
+          "shadow-xl shadow-black/20",
+          "hover:scale-105 active:scale-95",
+          "transition-all duration-200",
+          isOpen && "hidden"
+        )}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        initial={{ scale: 0, opacity: 0, y: 100 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, type: "spring", stiffness: 300, damping: 25 }}
+      >
+        <Sparkles className="w-4 h-4" />
+        <span className="text-sm font-medium">Ask AI</span>
+        <ChevronDown className="w-4 h-4 opacity-60" />
+      </motion.button>
+
+      {/* Centered Popup Panel */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-end justify-center pb-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Backdrop */}
+            <motion.div
+              className="absolute inset-0 bg-background/40 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+            />
+
+            {/* Chat Popup */}
+            <motion.div
+              className={cn(
+                "relative w-full mx-4",
+                panelWidth,
+                panelHeight,
+                "bg-background",
+                "rounded-2xl",
+                "border border-border",
+                "shadow-2xl shadow-black/25",
+                "overflow-hidden flex flex-col",
+                className
+              )}
+              initial={{ y: 60, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 60, opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            >
+              {/* Panel Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-background" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">AI Assistant</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {totalContexts > 0 ? `${totalContexts} source${totalContexts > 1 ? 's' : ''} active` : 'Ready to help'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg hover:bg-muted"
+                    onClick={() => setIsMaximized(!isMaximized)}
+                  >
+                    {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg hover:bg-muted"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-              
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">Neuron AI</span>
-                <span className="text-xs text-muted-foreground">
-                  {(() => {
-                    const activeContexts = [];
-                    if (contextStats.documents > 0) activeContexts.push('Documents');
-                    if (contextStats.youtubeVideos > 0) activeContexts.push('Videos');
-                    if (contextStats.webArticles > 0) activeContexts.push('Articles');
-                    if (contextStats.images > 0) activeContexts.push('Images');
-                    
-                    if (activeContexts.length > 0) {
-                      return `${activeContexts.join(' + ')} Context`;
-                    }
-                    return 'General assistant';
-                  })()}
-                </span>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-1 flex-wrap">
-              {/* Context Indicators - Dynamic badges based on uploaded content */}
-              
-              {/* Documents Badge */}
-              {contextStats.documents > 0 && (
-                <Badge variant="secondary" className="text-xs bg-orange-500/10 text-orange-600 border-orange-500/20">
-                  <Zap className="w-3 h-3 mr-1" />
-                  {contextStats.documents > 1 ? `${contextStats.documents} Docs` : 'Document'}
-                </Badge>
-              )}
-              
-              {/* YouTube Videos Badge */}
-              {contextStats.youtubeVideos > 0 && (
-                <Badge variant="secondary" className="text-xs bg-red-500/10 text-red-600 border-red-500/20">
-                  <Zap className="w-3 h-3 mr-1" />
-                  {contextStats.youtubeVideos > 1 ? `${contextStats.youtubeVideos} Videos` : 'Video'}
-                </Badge>
-              )}
-              
-              {/* Web Articles Badge */}
-              {contextStats.webArticles > 0 && (
-                <Badge variant="secondary" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/20">
-                  <Zap className="w-3 h-3 mr-1" />
-                  {contextStats.webArticles > 1 ? `${contextStats.webArticles} Articles` : 'Article'}
-                </Badge>
-              )}
-              
-              {/* Images Badge */}
-              {contextStats.images > 0 && (
-                <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20">
-                  <Zap className="w-3 h-3 mr-1" />
-                  {contextStats.images > 1 ? `${contextStats.images} Images` : 'Image'}
-                </Badge>
-              )}
-
-              {/* Expand/Collapse Toggle - moved to the right */}
-              {!isCompactMode && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-8 h-8 p-0 ml-2"
-                  onClick={() => setIsExpanded(!isExpanded)}
-                >
-                  {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                </Button>
-              )}
-
-              {/* Compact Mode Toggle - now at the far right */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-8 h-8 p-0"
-                onClick={() => setIsCompactMode(!isCompactMode)}
-              >
-                {isCompactMode ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </Button>
-            </div>
-          </div>
-
-          {/* Messages Area */}
-          <AnimatePresence>
-            {!isCompactMode && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <ScrollArea className="h-[350px]">
-                  <div className="p-4 space-y-4">
-                    {messages.map((msg) => (
-                      <motion.div
-                        key={msg.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={cn(
-                          "flex",
-                          msg.role === 'user' ? 'justify-end' : 'justify-start'
+              {/* Messages Area */}
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-4">
+                  {messages.map((msg) => (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn(
+                        "flex gap-3",
+                        msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+                      )}
+                    >
+                      {/* Avatar */}
+                      <div className={cn(
+                        "flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center",
+                        msg.role === 'user'
+                          ? "bg-foreground text-background"
+                          : "bg-muted text-muted-foreground"
+                      )}>
+                        {msg.role === 'user' ? (
+                          <CornerDownLeft className="w-3.5 h-3.5" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
                         )}
-                      >
-                        <div className={cn(
-                          "max-w-[85%] rounded-2xl p-3 shadow-sm",
-                          msg.role === 'user'
-                            ? 'bg-primary text-primary-foreground ml-4'
-                            : 'bg-muted mr-4'
-                        )}>
-                          {/* Message Header */}
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-semibold uppercase tracking-wide opacity-70">
-                              {msg.role === 'user' ? 'MY REQUEST' : 'AI REPLY'}
-                            </span>
-                            {msg.role === 'assistant' && msg.contextsUsed && msg.contextsUsed > 0 && (
-                              <Badge variant="outline" className="text-xs h-4 px-1">
-                                <Zap className="w-2 h-2 mr-1" />
-                                {msg.contextsUsed} chunks
-                              </Badge>
-                            )}
-                          </div>
+                      </div>
 
-                          {/* Message Content */}
-                          <div className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                      {/* Message Bubble */}
+                      <div className={cn(
+                        "flex-1 max-w-[85%] space-y-1",
+                        msg.role === 'user' ? 'items-end' : 'items-start'
+                      )}>
+                        <div className={cn(
+                          "rounded-xl px-3.5 py-2.5",
+                          msg.role === 'user'
+                            ? "bg-foreground text-background"
+                            : "bg-muted"
+                        )}>
+                          <div className="text-sm leading-relaxed">
                             <ReactMarkdown
                               components={{
-                                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
                                 ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
                                 ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
-                                li: ({ children }) => <li className="mb-1">{children}</li>,
-                                code: ({ children, inline }: any) => 
-                                  inline ? (
-                                    <code className="bg-muted px-1 py-0.5 rounded text-xs">{children}</code>
+                                li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                                code: ({ children, className, ...props }) =>
+                                  className ? (
+                                    <code className={className + " block bg-muted/60 p-2 rounded text-xs overflow-x-auto my-1.5 font-mono"} {...props}>
+                                      {children}
+                                    </code>
                                   ) : (
-                                    <code className="block bg-muted p-2 rounded text-xs overflow-x-auto">{children}</code>
+                                    <code className="bg-muted/40 px-1 py-0.5 rounded text-xs font-mono" {...props}>
+                                      {children}
+                                    </code>
                                   ),
                                 strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                                em: ({ children }) => <em className="italic">{children}</em>,
-                                h1: ({ children }) => <h1 className="text-base font-bold mb-2">{children}</h1>,
-                                h2: ({ children }) => <h2 className="text-sm font-bold mb-1">{children}</h2>,
-                                h3: ({ children }) => <h3 className="text-sm font-semibold mb-1">{children}</h3>,
+                                h1: ({ children }) => <h1 className="text-sm font-bold mb-2 mt-2">{children}</h1>,
+                                h2: ({ children }) => <h2 className="text-sm font-semibold mb-1.5 mt-2">{children}</h2>,
+                                h3: ({ children }) => <h3 className="text-sm font-medium mb-1 mt-1.5">{children}</h3>,
+                                a: ({ children, href }) => <a href={href} className="underline underline-offset-2 hover:text-foreground/80" target="_blank" rel="noopener noreferrer">{children}</a>,
+                                blockquote: ({ children }) => <blockquote className="border-l-2 border-border pl-3 italic text-muted-foreground my-1.5">{children}</blockquote>,
                               }}
                             >
                               {msg.content}
                             </ReactMarkdown>
                           </div>
+                        </div>
 
-                          {/* Source References */}
-                          {msg.role === 'assistant' && msg.sourcesReferenced && msg.sourcesReferenced.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-border/30">
-                              <p className="text-xs opacity-70">
-                                Sources: {msg.sourcesReferenced.join(', ')}
-                              </p>
-                            </div>
+                        {/* Meta */}
+                        <div className={cn(
+                          "flex items-center gap-1.5 text-[10px] text-muted-foreground/60 px-0.5",
+                          msg.role === 'user' ? 'justify-end' : 'justify-start'
+                        )}>
+                          <span>{formatTime(msg.timestamp)}</span>
+                          {msg.role === 'assistant' && msg.contextsUsed && msg.contextsUsed > 0 && (
+                            <span>{msg.contextsUsed} chunks</span>
                           )}
-
-                          {/* Processing Time */}
                           {msg.processingTimeMs && (
-                            <div className="mt-1">
-                              <span className="text-xs opacity-50">
-                                {msg.processingTimeMs}ms
-                              </span>
-                            </div>
+                            <span>{msg.processingTimeMs}ms</span>
                           )}
                         </div>
-                      </motion.div>
-                    ))}
+                      </div>
+                    </motion.div>
+                  ))}
 
-                    {/* Thinking Indicator */}
-                    {isGenerating && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="flex justify-start"
-                      >
-                        <div className="bg-muted rounded-2xl p-3 mr-4">
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                            <span className="text-sm text-muted-foreground">
-                              {youtubeContext ? 'Analyzing web content...' : hasDocuments ? 'Searching your documents...' : 'Thinking...'}
-                            </span>
-                          </div>
+                  {/* Thinking */}
+                  {isGenerating && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex gap-3"
+                    >
+                      <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                        <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
+                      </div>
+                      <div className="bg-muted rounded-xl px-3.5 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            {hasDocuments ? 'Searching documents...' : 'Thinking...'}
+                          </span>
                         </div>
-                      </motion.div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <div ref={messagesEndRef} />
+                </div>
+              </ScrollArea>
+
+              {/* Input Area */}
+              <div className="px-4 py-3 border-t border-border bg-muted/10">
+                <div className="flex items-center gap-2 bg-background border border-border rounded-xl p-1.5">
+                  <Input
+                    ref={inputRef}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder={
+                      hasDocuments
+                        ? "Ask about your documents..."
+                        : "Ask me anything..."
+                    }
+                    disabled={isGenerating}
+                    className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9"
+                    autoComplete="off"
+                  />
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!message.trim() || isGenerating}
+                    size="icon"
+                    className="h-8 w-8 rounded-lg bg-foreground hover:bg-foreground/90 shrink-0"
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
                     )}
-                    
-                    {/* Invisible anchor for auto-scroll */}
-                    <div ref={messagesEndRef} className="h-0" />
-                  </div>
-                </ScrollArea>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Input Area */}
-          <div className="p-3 border-t border-border/50 bg-background/50">
-            <div className="flex items-end gap-2">
-              <div className="flex-1 relative">
-                <Input
-                  ref={inputRef}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder={
-                    youtubeContext
-                      ? "Ask about the web content..."
-                      : hasDocuments
-                      ? "Ask about your documents..."
-                      : "Ask me anything..."
-                  }
-                  disabled={isGenerating}
-                  className="pr-12 resize-none border-border/50 bg-background/50 backdrop-blur-sm focus:border-primary/50 focus:ring-primary/20"
-                  autoComplete="off"
-                />
-                
-                {/* Character count for long messages */}
-                {message.length > 100 && (
-                  <div className="absolute -top-5 right-2 text-xs text-muted-foreground">
-                    {message.length}/500
-                  </div>
-                )}
+                  </Button>
+                </div>
               </div>
-
-              {/* Send Button */}
-              <Button
-                onClick={handleSendMessage}
-                disabled={!message.trim() || isGenerating}
-                size="sm"
-                className="w-10 h-10 p-0 rounded-xl bg-primary hover:bg-primary/90 shrink-0"
-              >
-                {isGenerating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Connection Status Indicator */}
-        <motion.div
-          className="absolute -top-2 left-4 flex items-center gap-1 text-xs text-muted-foreground bg-card border border-border rounded-full px-2 py-1 shadow-sm"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
-          <div className={cn(
-            "w-1.5 h-1.5 rounded-full",
-            (contextStats.documents + contextStats.youtubeVideos + contextStats.webArticles + contextStats.images) > 0 
-              ? "bg-green-500 animate-pulse" 
-              : "bg-yellow-500"
-          )} />
-          {(() => {
-            const totalContexts = contextStats.documents + contextStats.youtubeVideos + contextStats.webArticles + contextStats.images;
-            if (totalContexts > 1) return `${totalContexts} Contexts Active`;
-            if (totalContexts === 1) return 'Context Active';
-            return 'General AI';
-          })()}
-        </motion.div>
-      </div>
-    </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

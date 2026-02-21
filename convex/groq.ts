@@ -1,7 +1,8 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 
-// Generate AI response using Gemini API (server-side)
+// Generate AI response using Groq API (server-side)
+// Using llama-3.3-70b-versatile - best free model with high RPD
 export const generateResponse = action({
   args: {
     query: v.string(),
@@ -10,10 +11,10 @@ export const generateResponse = action({
   handler: async (ctx, args) => {
     try {
       // @ts-ignore - Convex provides process.env
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GROQ_API_KEY;
       
       if (!apiKey) {
-        throw new Error('GEMINI_API_KEY not configured');
+        throw new Error('GROQ_API_KEY not configured');
       }
 
       const systemPrompt = args.hasDocuments
@@ -21,46 +22,50 @@ export const generateResponse = action({
         : "You are Neuron AI, an intelligent learning assistant. Be friendly, educational, and encourage users to upload documents for more personalized help. Keep responses concise but informative.";
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        'https://api.groq.com/openai/v1/chat/completions',
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
-            contents: [
+            model: 'llama-3.3-70b-versatile', // Best free model with high RPD
+            messages: [
               {
-                parts: [
-                  {
-                    text: `${systemPrompt}\n\nUser: ${args.query}\n\nAssistant:`,
-                  },
-                ],
+                role: 'system',
+                content: systemPrompt,
+              },
+              {
+                role: 'user',
+                content: args.query,
               },
             ],
-            generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 1024,
-            },
+            temperature: 0.7,
+            max_tokens: 1024,
+            top_p: 1,
+            stream: false,
           }),
         }
       );
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Gemini API failed: ${response.status} - ${errorText}`);
+        console.error('Groq API error:', errorText);
+        throw new Error(`Groq API failed: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
       
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || 
+      const text = result.choices?.[0]?.message?.content || 
                    "I apologize, but I couldn't generate a proper response. Please try again.";
 
       return {
         response: text,
-        model: 'gemini-2.0-flash',
+        model: 'llama-3.3-70b-versatile',
       };
     } catch (error) {
-      console.error('Gemini generation error:', error);
+      console.error('Groq generation error:', error);
       throw error;
     }
   },
